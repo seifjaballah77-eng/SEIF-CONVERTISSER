@@ -79,8 +79,7 @@ app.get('/api/media/download',async(req,res)=>{
     await fs.promises.mkdir(work,{recursive:true});
     const template=path.join(work,'%(title).90B-%(id)s.%(ext)s');
     await runYtDlp(['--no-warnings','--no-progress','--no-playlist','--no-part','--format',format,'--output',template,'--print','after_move:filepath',url],{maxOutput:100000});
-    const output=(await fs.promises.readdir(work)).map(n=>path.join(work,n)).find(async p=>(await fs.promises.stat(p)).isFile());
-    const names=await fs.promises.readdir(work);
+        const names=await fs.promises.readdir(work);
     if(!names.length)throw new Error('لم يُنشئ المصدر ملفاً قابلاً للتنزيل.');
     const file=path.join(work,names[0]);
     const stat=await fs.promises.stat(file);
