@@ -31,9 +31,28 @@ function checkedMediaUrl(raw){
   if(u.username||u.password)throw new Error('الروابط التي تتضمن بيانات دخول غير مسموحة.');
   return u.toString();
 }
+// Optional authenticated source access. Store the exported Netscape cookie file
+// as the Render secret YT_COOKIES_BASE64; never commit cookies to the repository.
+let ytCookiesPath=null;
+function getYtDlpCookieArgs(){
+  const encoded=process.env.YT_COOKIES_BASE64;
+  if(!encoded)return [];
+  if(!ytCookiesPath){
+    const decoded=Buffer.from(encoded,'base64');
+    if(!decoded.length||decoded.length>2_000_000)throw new Error('إعداد Cookies غير صالح أو حجمه أكبر من الحد المسموح.');
+    const contents=decoded.toString('utf8');
+    if(!contents.includes('# Netscape HTTP Cookie File')&&!contents.includes('# HTTP Cookie File'))
+      throw new Error('ملف Cookies يجب أن يكون بصيغة Netscape.');
+    ytCookiesPath=path.join(os.tmpdir(),'seif-ytdlp-cookies-'+process.pid+'.txt');
+    fs.writeFileSync(ytCookiesPath,contents,{mode:0o600});
+  }
+  return ['--cookies',ytCookiesPath];
+}
 function runYtDlp(args,{maxOutput=2_000_000,timeoutMs=60_000}={}){
   return new Promise((resolve,reject)=>{
-    const p=spawn(process.env.YTDLP_PATH||'yt-dlp',['--ignore-config','--socket-timeout','8','--retries','1','--extractor-retries','1',...args],{stdio:['ignore','pipe','pipe']});
+    let authArgs;
+    try{authArgs=getYtDlpCookieArgs()}catch(err){reject(err);return}
+    const p=spawn(process.env.YTDLP_PATH||'yt-dlp',['--ignore-config','--socket-timeout','8','--retries','1','--extractor-retries','1',...authArgs,...args],{stdio:['ignore','pipe','pipe']});
     let stdout='',stderr='',settled=false;
     const finish=(err,value)=>{
       if(settled)return;
