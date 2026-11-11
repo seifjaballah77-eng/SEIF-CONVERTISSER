@@ -106,3 +106,49 @@ body.light .media-status{background:#f7f9fd}body.light .media-result{background:
 body.light .operation-loader{background:linear-gradient(110deg,#f0f4ff,#f8f2ff);color:#26314b;border-color:#d9def1}
 body.light .loader-copy small{color:#69758e}
 @media(prefers-reduced-motion:reduce){.operation-loader *,.loader-track.indeterminate i{animation:none!important;transition:none!important}}
+
+
+/* Gemini spectrum orbit: perimeter-only effect for every real button */
+button:not(.file-drop),a.mini-btn{
+  position:relative;
+  isolation:isolate;
+  overflow:visible;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+  transition:transform .2s ease,filter .2s,box-shadow .2s;
+}
+button:not(.file-drop)::before,a.mini-btn::before{
+  content:"";
+  position:absolute;
+  inset:-2px;
+  border-radius:inherit;
+  padding:2px;
+  background:conic-gradient(from var(--orbit-angle,0deg),#4285ff 0deg,#8b5cf6 85deg,#ec4899 165deg,#34d399 245deg,#60a5fa 310deg,#4285ff 360deg);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;
+  mask-composite:exclude;
+  pointer-events:none;
+  z-index:2;
+  opacity:.9;
+  animation:geminiOrbit 4.5s linear infinite;
+}
+button:not(.file-drop)::after,a.mini-btn::after{
+  content:"";
+  position:absolute;
+  inset:-3px;
+  border-radius:inherit;
+  background:conic-gradient(from var(--orbit-angle,0deg),#4285ff,#8b5cf6,#ec4899,#34d399,#60a5fa,#4285ff);
+  filter:blur(7px);
+  opacity:.32;
+  pointer-events:none;
+  z-index:-1;
+  animation:geminiOrbit 4.5s linear infinite;
+}
+button:not(.file-drop):hover,a.mini-btn:hover{filter:brightness(1.12);box-shadow:0 0 16px #8b5cf533}
+button:not(.file-drop):active,a.mini-btn:active{transform:scale(.97);filter:brightness(1.2)}
+button:not(.file-drop):disabled{cursor:not-allowed}
+button:not(.file-drop):disabled::before,button:not(.file-drop):disabled::after{animation-play-state:paused;opacity:.22}
+@media(prefers-reduced-motion:reduce){
+  button:not(.file-drop)::before,button:not(.file-drop)::after,a.mini-btn::before,a.mini-btn::after{animation:none}
+  button:not(.file-drop),a.mini-btn{transition:none}
+}
