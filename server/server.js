@@ -63,7 +63,7 @@ app.post('/api/process/:action',upload.single('file'),async(req,res)=>{
       args=['-i',input,'-c:v','libx264','-preset','medium','-crf',crf,'-c:a','aac','-b:a','128k','-movflags','+faststart',output];
     }else if(action==='gif'){
       const start=num(req.body.start,0,0,86400),duration=num(req.body.duration,3,.5,20);
-      args=['-ss',String(start),'-t',String(duration),'-i',input,'-vf','fps=12,scale=640:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse','-loop','0',output];
+      args=['-ss',String(start),'-t',String(duration),'-i',input,'-filter_complex','[0:v]fps=12,scale=640:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse','-loop','0',output];
     }
     await runFFmpeg(args);
     const stat=await fs.promises.stat(output);
