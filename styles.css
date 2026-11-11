@@ -291,3 +291,107 @@ body.light .media-result{background:#fff;border-color:#e0e0e5}
   body.light .sidebar{background:#fff}
   .topbar{backdrop-filter:blur(12px)}
 }
+
+
+/* Gemini-style download workspace refinement */
+.downloader-welcome{
+  position:relative;isolation:isolate;min-height:184px;padding:34px 38px;
+  border-radius:24px;border-color:#5a4b78;
+  background:
+    radial-gradient(ellipse at 12% 12%,#4285f733,transparent 38%),
+    radial-gradient(ellipse at 82% 90%,#a142f433,transparent 42%),
+    linear-gradient(118deg,#202124 0%,#20202a 48%,#26202e 100%);
+  box-shadow:0 18px 55px #0003,inset 0 1px #ffffff0c;
+}
+.downloader-welcome:after{
+  content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;border-radius:inherit;
+  background:linear-gradient(115deg,transparent 20%,#ffffff08 48%,transparent 72%);
+}
+.downloader-welcome .eyebrow{color:#b7a4ff;letter-spacing:2.3px}
+.downloader-welcome h1{font-size:clamp(27px,3.2vw,39px);letter-spacing:-.6px}
+.downloader-welcome h1 em{
+  background:linear-gradient(95deg,#8ab4f8 5%,#c58af9 48%,#f3a6d7 90%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.downloader-welcome p{font-size:13px;color:#b8bbc2}
+.downloader-welcome .welcome-art{
+  width:112px;height:112px;display:grid;place-items:center;flex:none;
+  border-radius:34px;font-size:43px;letter-spacing:-4px;color:#f2edff;
+  background:linear-gradient(145deg,#4285f822,#a142f433);
+  border:1px solid #b69aff44;box-shadow:0 0 45px #8b5cf626,inset 0 1px #ffffff20;
+  transform:rotate(-7deg);
+}
+.downloader-welcome .welcome-art span{color:#a78bfa;font-size:25px}
+.downloader-panel{
+  position:relative;border-radius:22px;padding:27px;
+  background:linear-gradient(145deg,#202124,#1b1c1e 70%,#211e29);
+  border-color:#4a4655;box-shadow:0 14px 40px #0003,inset 0 1px #ffffff0a;
+}
+.downloader-panel .section-heading h2{font-size:19px;color:#f1f1f1}
+.downloader-panel .section-heading p{font-size:12px;color:#aeb1b8}
+.downloader-panel .soft-tag{border-color:#51466a;background:#292432;color:#d8c9ff}
+.downloader-panel .link-form{gap:11px}
+.downloader-panel .link-form input{
+  min-height:58px;padding:0 18px;border-radius:15px;
+  background:#131416;border:1px solid #55515e;color:#f1f1f1;
+  box-shadow:inset 0 1px 4px #0005;font-size:14px;
+}
+.downloader-panel .link-form input:focus{
+  border-color:#a78bfa;box-shadow:0 0 0 3px #a78bfa25,0 0 24px #8b5cf61c;
+}
+.downloader-panel .link-form button#quickDownloadBtn{
+  min-width:174px;min-height:58px;border-radius:15px;padding:0 22px;
+  display:inline-flex;align-items:center;justify-content:center;gap:12px;
+  position:relative;overflow:hidden;
+  background:linear-gradient(105deg,#4285f4 0%,#8067e9 52%,#a142f4 100%);
+  box-shadow:0 8px 25px #8b5cf638,inset 0 1px #ffffff40;
+  font-size:14px;font-weight:700;letter-spacing:.1px;
+}
+.downloader-panel .link-form button#quickDownloadBtn:before{
+  content:"";position:absolute;inset:1px;border-radius:14px;
+  background:linear-gradient(110deg,transparent 25%,#ffffff30 48%,transparent 70%);
+  transform:translateX(-120%);transition:transform .65s ease;pointer-events:none;
+}
+.downloader-panel .link-form button#quickDownloadBtn:hover:before{transform:translateX(120%)}
+.downloader-panel .link-form button#quickDownloadBtn span{
+  width:27px;height:27px;border-radius:9px;display:grid;place-items:center;
+  background:#ffffff25;border:1px solid #ffffff35;font-size:17px;
+}
+.downloader-panel .platform-chips{gap:8px}
+.downloader-panel .platform-chips .chip{
+  padding:6px 11px;background:#292a2d;border-color:#45464a;color:#c5c7cc;
+  transition:background .2s,border-color .2s,transform .2s;
+}
+.downloader-panel .platform-chips .chip:hover{background:#332b43;border-color:#8b5cf6;transform:translateY(-1px)}
+.media-status{border-radius:12px;padding:12px 14px;background:#171819}
+.media-result{
+  border-radius:17px;padding:18px;
+  background:linear-gradient(145deg,#29252f,#202124 70%);
+  border-color:#625276;box-shadow:0 10px 28px #0002;
+}
+.media-thumb{border-radius:12px;box-shadow:0 5px 18px #0005}
+.media-download-row button#downloadMediaBtn{
+  border-radius:12px;background:linear-gradient(105deg,#4285f4,#8067e9 55%,#a142f4);
+  box-shadow:0 6px 20px #8b5cf638;min-height:46px;padding:0 20px;
+}
+.media-download-row button#downloadMediaBtn:hover{filter:brightness(1.12);transform:translateY(-1px)}
+body.light .downloader-welcome{
+  background:radial-gradient(ellipse at 12% 12%,#4285f426,transparent 38%),radial-gradient(ellipse at 82% 90%,#a142f426,transparent 42%),linear-gradient(118deg,#f1effb,#f8f6fc 65%,#f2edfa);
+  border-color:#ddd3f1;box-shadow:0 12px 32px #40305d12;
+}
+body.light .downloader-welcome p{color:#626575}
+body.light .downloader-panel{background:linear-gradient(145deg,#fff,#f8f7fb);border-color:#e2ddeb}
+body.light .downloader-panel .section-heading h2{color:#25232b}
+body.light .downloader-panel .link-form input{background:#fff;color:#25232b;border-color:#d8d3e1}
+body.light .downloader-panel .platform-chips .chip{background:#f1eff5;border-color:#e2ddeb;color:#5f5b68}
+body.light .media-result{background:linear-gradient(145deg,#fff,#f6f3fa);border-color:#ded4ed}
+@media(max-width:560px){
+  .downloader-welcome{padding:23px 20px;min-height:150px}
+  .downloader-welcome .welcome-art{width:70px;height:70px;border-radius:22px;font-size:29px}
+  .downloader-panel{padding:17px}
+  .downloader-panel .link-form button#quickDownloadBtn{width:100%;min-height:53px}
+}
+@media(prefers-reduced-motion:reduce){
+  .downloader-panel .link-form button#quickDownloadBtn:before{display:none}
+  .downloader-panel .platform-chips .chip{transition:none}
+}
