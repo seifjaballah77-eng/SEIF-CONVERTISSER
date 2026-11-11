@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: seif-convertisser-api
+    runtime: docker
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MAX_UPLOAD_MB
+        value: "500"
+      - key: ALLOWED_ORIGINS
+        sync: false
