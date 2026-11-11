@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#080b13"><meta name="description" content="SEIF CONVERTISSER — مساحة احترافية لإدارة وتحويل الوسائط">
+  <title>SEIF CONVERTISSER</title><link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar">
+    <a class="brand" href="#home"><span class="brand-mark">S</span><span><b>SEIF</b><small>CONVERTISSER</small></span></a>
+    <div class="side-scroll">
+      <p class="nav-caption">مساحة العمل</p>
+      <button class="nav-link active" data-page="home"><i>⌂</i> الرئيسية</button>
+      <button class="nav-link" data-page="discover"><i>⌕</i> البحث والاكتشاف</button>
+      <button class="nav-link" data-page="fetch"><i>↧</i> جلب الوسائط</button>
+      <p class="nav-caption">الأدوات</p>
+      <button class="nav-link" data-page="batch"><i>▤</i> المعالجة الجماعية</button>
+      <button class="nav-link" data-page="images"><i>▧</i> صور المنشورات</button>
+      <button class="nav-link" data-page="trim"><i>✂</i> قص الفيديو</button>
+      <button class="nav-link" data-page="audio"><i>♫</i> استخراج الصوت</button>
+      <button class="nav-link" data-page="convert"><i>⇄</i> تحويل الصيغ</button>
+      <button class="nav-link" data-page="compress"><i>◫</i> ضغط الملفات</button>
+      <button class="nav-link" data-page="gif"><i>▣</i> صانع GIF</button>
+      <p class="nav-caption">المكتبة والنظام</p>
+      <button class="nav-link" data-page="downloads"><i>⇩</i> مركز التنزيلات</button>
+      <button class="nav-link" data-page="history"><i>◷</i> سجل الروابط <span class="nav-count" id="historyCount">0</span></button>
+      <button class="nav-link" data-page="settings"><i>⚙</i> الإعدادات</button>
+    </div>
+    <div class="sidebar-foot"><span class="status-dot"></span><span>مساحة عمل محلية</span><span class="version">v0.1</span></div>
+  </aside>
+  <main class="main">
+    <header class="topbar"><button class="icon-btn mobile-menu" id="menuBtn" aria-label="القائمة">☰</button><div class="crumb"><span>SEIF CONVERTISSER</span><b id="pageCrumb">الرئيسية</b></div><div class="top-actions"><span class="local-badge"><span class="status-dot"></span> جاهز</span><button class="icon-btn" id="themeBtn" title="تبديل المظهر">☼</button></div></header>
+    <div class="content">
+      <section class="page active" id="page-home">
+        <div class="welcome"><div><span class="eyebrow">MEDIA WORKSPACE</span><h1>كل أدوات الوسائط، <em>في مكان واحد.</em></h1><p>ابحث عن المحتوى أو أضف ملفاً من جهازك وابدأ العمل.</p></div><div class="welcome-art">SC<span>✦</span></div></div>
+        <div class="quick-panel"><div class="section-heading"><div><h2>ابدأ بسرعة</h2><p>الصق رابطاً أو اختر ملفاً محلياً</p></div><span class="soft-tag">رابط أو ملف</span></div>
+          <form id="quickLinkForm" class="link-form"><input id="quickLink" type="url" placeholder="الصق رابط الفيديو أو المنشور هنا..." dir="ltr"><button class="primary-btn">تحليل الرابط <span>←</span></button></form>
+          <div class="platform-chips" id="platformChips"></div>
+        </div>
+        <div class="section-heading tools-title"><div><h2>الأدوات</h2><p>كل أداة في مساحة مستقلة</p></div></div><div class="tool-grid" id="homeTools"></div>
+        <div class="notice"><span>ⓘ</span><div><b>المعالجة المحلية والخادم</b><p>هذه النسخة التأسيسية توفر الواجهة وإدارة الملفات محلياً. عمليات FFmpeg والبحث عبر المنصات تحتاج ربط خادم المعالجة ومصادر البحث المصرّح بها.</p></div></div>
+      </section>
+      <section class="page" id="page-discover"><div class="page-head"><span class="eyebrow">DISCOVER</span><h1>البحث والاكتشاف</h1><p>ابحث بالكلمات المفتاحية عبر مصادر البحث المتاحة، أو اختر منصة بعينها.</p></div>
+        <form id="searchForm" class="search-box"><span>⌕</span><input id="searchQuery" placeholder="ما الفيديو أو المنشور الذي تبحث عنه؟"><button class="primary-btn">بحث</button></form>
+        <div class="filter-row"><label>المنصة <select id="searchPlatform"><option value="all">جميع المنصات</option></select></label><label>نوع المحتوى <select id="searchType"><option value="all">كل الأنواع</option><option>فيديو</option><option>صور ومنشورات</option><option>بث مباشر وتسجيلات</option></select></label></div>
+        <div id="searchState" class="empty-state"><div class="empty-icon">⌕</div><h3>اكتب ما تريد اكتشافه</h3><p>ستظهر النتائج الفعلية عند إعداد موصلات البحث المسموح بها في الخادم.</p></div><div id="searchResults" class="result-grid"></div>
+      </section>
+      <section class="page" id="page-fetch"><div class="page-head"><span class="eyebrow">LINK INSPECTOR</span><h1>جلب الوسائط</h1><p>أضف رابطاً عاماً تملك حق الوصول إلى محتواه، ثم اختر الإجراء المناسب.</p></div><form id="fetchForm" class="panel form-stack"><label>رابط المحتوى<input id="fetchUrl" type="url" required placeholder="https://..." dir="ltr"></label><div class="form-grid"><label>المنصة<select id="fetchPlatform"></select></label><label>نوع المحتوى<select id="fetchKind"><option value="auto">اكتشاف تلقائي</option><option value="video">فيديو</option><option value="image">صور منشور</option><option value="audio">صوت</option></select></label></div><label>اسم الملف المقترح<input id="fileName" placeholder="seif-media"></label><div class="inline-actions"><button class="primary-btn">تحليل وحفظ الرابط</button><button type="button" class="secondary-btn" id="copyFetch">نسخ الرابط</button></div><div id="fetchFeedback" class="feedback"></div></form>
+        <div class="platform-directory"><h2>المنصات المدعومة في التصميم</h2><p>كل منصة قد تضم فيديوهات وصوراً ومنشورات وبثاً مباشراً؛ التوفر الفعلي يختلف حسب المنصة والرابط والصلاحيات.</p><div id="platformDirectory" class="platform-grid"></div></div>
+      </section>
+      <section class="page" id="page-batch"><div class="page-head"><span class="eyebrow">BATCH QUEUE</span><h1>المعالجة الجماعية</h1><p>أضف عدة روابط، رابطاً في كل سطر. ستتم مراجعتها قبل إرسالها للخادم.</p></div><div class="panel form-stack"><label>قائمة الروابط<textarea id="batchInput" rows="7" placeholder="https://example.com/video/1&#10;https://example.com/post/2" dir="ltr"></textarea></label><div class="inline-actions"><button class="primary-btn" id="addBatch">إضافة إلى الطابور</button><button class="secondary-btn" id="clearBatch">مسح</button></div><div id="batchList" class="queue-list"></div></div></section>
+      <section class="page" id="page-images"><div class="page-head"><span class="eyebrow">POST IMAGES</span><h1>صور المنشورات</h1><p>إدارة صور المنشورات العامة التي تملك حق حفظها، وفق ما تسمح به المنصة.</p></div><div class="panel form-stack"><label>رابط المنشور<input id="imagePostUrl" type="url" placeholder="https://..." dir="ltr"></label><button class="primary-btn" id="imageInspect">فحص المنشور</button><div id="imageFeedback" class="feedback">يلزم موصل منصة متوافق لاستخراج الصور الأصلية.</div></div></section>
+      <section class="page" id="page-trim"><div class="page-head"><span class="eyebrow">PRECISION TRIM</span><h1>قص الفيديو</h1><p>حدد ملفاً من جهازك لمعاينته وتحديد البداية والنهاية.</p></div><div class="panel form-stack"><label class="file-drop">＋ <b>اختر فيديو من جهازك</b><small>MP4 · WebM · MOV · حسب دعم المتصفح</small><input id="trimFile" type="file" accept="video/*"></label><video id="trimPreview" class="preview" controls hidden></video><div class="form-grid"><label>البداية (ثانية)<input id="trimStart" type="number" min="0" step="0.01" value="0"></label><label>النهاية (ثانية)<input id="trimEnd" type="number" min="0" step="0.01" value="0"></label></div><div class="timeline"><div id="timelineFill"></div></div><div class="inline-actions"><button class="primary-btn" id="trimProcess" disabled>قص وتصدير عبر الخادم</button><span class="muted" id="trimDuration">لم يتم اختيار ملف</span></div><div id="trimFeedback" class="feedback"></div></div></section>
+      <section class="page" id="page-audio"><div class="page-head"><span class="eyebrow">AUDIO EXTRACT</span><h1>استخراج الصوت</h1><p>استخرج الصوت من ملف فيديو تملكه، واختر الصيغة والجودة.</p></div><div class="panel form-stack"><label class="file-drop">♫ <b>اختر ملف فيديو</b><small>يتم رفعه إلى خادمك عند بدء التحويل</small><input id="audioFile" type="file" accept="video/*,audio/*"></label><div class="form-grid"><label>الصيغة<select id="audioFormat"><option>mp3</option><option>wav</option><option>m4a</option></select></label><label>معدل البت<select id="audioBitrate"><option value="320k">320 kbps</option><option value="192k">192 kbps</option><option value="128k">128 kbps</option></select></label></div><button class="primary-btn" id="audioProcess">استخراج الصوت</button><div id="audioFeedback" class="feedback"></div></div></section>
+      <section class="page" id="page-convert"><div class="page-head"><span class="eyebrow">FORMAT CONVERTER</span><h1>تحويل الصيغ</h1><p>حوّل الملفات المحلية إلى صيغة مناسبة لاستخدامك.</p></div><div class="panel form-stack"><label class="file-drop">⇄ <b>اختر ملفاً للتحويل</b><small>فيديو أو صوت</small><input id="convertFile" type="file" accept="video/*,audio/*"></label><div class="form-grid"><label>الصيغة الناتجة<select id="convertFormat"><option>mp4</option><option>webm</option><option>mkv</option><option>mp3</option><option>wav</option><option>m4a</option></select></label><label>اسم الملف<input id="convertName" placeholder="converted-file"></label></div><button class="primary-btn" id="convertProcess">بدء التحويل</button><div id="convertFeedback" class="feedback"></div></div></section>
+      <section class="page" id="page-compress"><div class="page-head"><span class="eyebrow">SMART COMPRESSION</span><h1>ضغط الملفات</h1><p>وازن بين حجم الملف والجودة. نسبة التخفيض تختلف حسب المصدر والإعدادات.</p></div><div class="panel form-stack"><label class="file-drop">◫ <b>اختر فيديو للضغط</b><small>لا يتم ضمان نسبة ضغط ثابتة</small><input id="compressFile" type="file" accept="video/*"></label><label>مستوى الضغط<select id="compressLevel"><option value="balanced">متوازن — جودة جيدة وحجم أقل</option><option value="high">ضغط أعلى — قد تنخفض الجودة</option><option value="light">خفيف — يحافظ على جودة أعلى</option></select></label><button class="primary-btn" id="compressProcess">ضغط الفيديو</button><div id="compressFeedback" class="feedback"></div></div></section>
+      <section class="page" id="page-gif"><div class="page-head"><span class="eyebrow">GIF MAKER</span><h1>صانع GIF</h1><p>حوّل جزءاً قصيراً من فيديو محلي إلى صورة متحركة.</p></div><div class="panel form-stack"><label class="file-drop">▣ <b>اختر فيديو</b><small>يفضل تحديد مقطع قصير</small><input id="gifFile" type="file" accept="video/*"></label><div class="form-grid"><label>البداية بالثواني<input id="gifStart" type="number" min="0" step=".1" value="0"></label><label>المدة بالثواني<input id="gifDuration" type="number" min=".5" max="20" step=".5" value="3"></label></div><button class="primary-btn" id="gifProcess">إنشاء GIF</button><div id="gifFeedback" class="feedback"></div></div></section>
+      <section class="page" id="page-downloads"><div class="page-head"><span class="eyebrow">DOWNLOAD CENTER</span><h1>مركز التنزيلات</h1><p>تابع نتائج المعالجة التي أُنشئت في هذه الجلسة.</p></div><div id="downloadsList" class="panel empty-state"><div class="empty-icon">⇩</div><h3>لا توجد ملفات بعد</h3><p>ستظهر هنا روابط الملفات الناتجة عند ربط خادم المعالجة.</p></div></section>
+      <section class="page" id="page-history"><div class="page-head"><span class="eyebrow">LOCAL HISTORY</span><h1>سجل الروابط</h1><p>يُحفظ الرابط وبياناته محلياً لمدة 30 يوماً. لا تُحفظ ملفات الوسائط هنا.</p></div><div class="inline-actions history-actions"><button class="secondary-btn" id="copyAllHistory">نسخ كل الروابط</button><button class="danger-btn" id="clearHistory">مسح السجل</button></div><div id="historyList" class="history-list"></div></section>
+      <section class="page" id="page-settings"><div class="page-head"><span class="eyebrow">PREFERENCES</span><h1>الإعدادات</h1><p>إعداد مساحة العمل والاتصال بخادم المعالجة.</p></div><div class="panel form-stack"><label>عنوان خادم المعالجة (Backend URL)<input id="backendUrl" type="url" placeholder="https://your-server.example.com" dir="ltr"></label><p class="muted">اتركه فارغاً حتى يتم نشر الخادم. لا تضع مفاتيح سرية في الواجهة.</p><label>المظهر<select id="themeSelect"><option value="dark">داكن OLED</option><option value="light">فاتح</option></select></label><label>اللغة<select id="languageSelect"><option value="ar">العربية</option><option value="en">English (واجهة قيد الإعداد)</option><option value="fr">Français (واجهة قيد الإعداد)</option></select></label><button class="primary-btn" id="saveSettings">حفظ الإعدادات</button><div id="settingsFeedback" class="feedback"></div></div></section>
+    </div>
+    <footer>SEIF CONVERTISSER <span>صنع بيد سيف</span></footer>
+  </main>
+</div><div class="toast" id="toast" role="status"></div><script src="app.js"></script>
+</body></html>
