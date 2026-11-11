@@ -48,7 +48,7 @@ function mediaSummary(info){
   const maxHeight=Math.max(0,...fs.map(x=>Number(x.height)||0));
   const hasVideo=fs.some(x=>x.vcodec&&x.vcodec!=='none');
   const hasAudio=fs.some(x=>x.acodec&&x.acodec!=='none');
-  const imageOnly=imageFormats.length>0&&!hasVideo;
+  const imageOnly=(imageFormats.length>0||imageExts.has(String(info.ext||'').toLowerCase()))&&!hasVideo;
   return {
     title:info.title||info.fulltitle||'وسائط من المصدر',
     platform:info.extractor_key||info.extractor||'مصدر معروف',
@@ -78,7 +78,9 @@ app.get('/api/media/download',async(req,res)=>{
     work=path.join(os.tmpdir(),'seif-media-'+crypto.randomUUID());
     await fs.promises.mkdir(work,{recursive:true});
     const template=path.join(work,'%(title).90B-%(id)s.%(ext)s');
-    await runYtDlp(['--no-warnings','--no-progress','--no-playlist','--no-part','--format',format,'--output',template,'--print','after_move:filepath',url],{maxOutput:100000});
+    const downloadArgs=['--no-warnings','--no-progress','--no-playlist','--no-part','--format',format,'--output',template,'--print','after_move:filepath'];
+    if(quality==='audio')downloadArgs.push('--extract-audio','--audio-format','mp3','--audio-quality','0');
+    await runYtDlp([...downloadArgs,url],{maxOutput:100000});
         const names=await fs.promises.readdir(work);
     if(!names.length)throw new Error('لم يُنشئ المصدر ملفاً قابلاً للتنزيل.');
     const file=path.join(work,names[0]);
@@ -88,7 +90,8 @@ app.get('/api/media/download',async(req,res)=>{
     const mime=({'.mp4':'video/mp4','.webm':'video/webm','.mkv':'video/x-matroska','.mp3':'audio/mpeg','.m4a':'audio/mp4','.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.webp':'image/webp','.gif':'image/gif'})[ext]||'application/octet-stream';
     res.setHeader('Content-Type',mime);
     res.setHeader('Content-Length',stat.size);
-    res.setHeader('Content-Disposition','attachment; filename="seif-download'+ext+'"');
+    const downloadName=safeBase(path.parse(file).name)+ext;
+    res.setHeader('Content-Disposition',\"attachment; filename*=UTF-8''\"+encodeURIComponent(downloadName));
     const stream=fs.createReadStream(file);
     stream.on('error',()=>{if(!res.headersSent)res.status(500).end();});
     stream.on('close',()=>fs.promises.rm(work,{recursive:true,force:true}).catch(()=>{}));
