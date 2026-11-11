@@ -9,6 +9,12 @@ const os=require('node:os');
 const path=require('node:path');
 const crypto=require('node:crypto');
 
+// Keep the PO-token provider private inside this container; yt-dlp talks to loopback only.
+const potProvider=spawn(process.execPath,[process.env.POT_PROVIDER_PATH||'/opt/bgutil-ytdlp-pot-provider/server/build/main.js','--host','127.0.0.1','--port','4416'],{stdio:['ignore','ignore','pipe']});
+potProvider.stderr.on('data',d=>console.error('[bgutil-pot]',d.toString().trim()));
+potProvider.on('error',err=>console.error('[bgutil-pot] failed to start:',err.message));
+potProvider.on('exit',(code)=>console.error('[bgutil-pot] exited with code',code));
+
 const app=express();
 const PORT=process.env.PORT||8080;
 const MAX_UPLOAD_MB=Number(process.env.MAX_UPLOAD_MB||500);
@@ -19,7 +25,7 @@ app.use(express.json({limit:'1mb'}));
 app.use('/api/',rateLimit({windowMs:60_000,limit:30,standardHeaders:true,legacyHeaders:false}));
 const upload=multer({storage:multer.memoryStorage(),limits:{fileSize:MAX_UPLOAD_MB*1024*1024,files:1}});
 
-app.get('/health',(req,res)=>res.json({ok:true,service:'SEIF CONVERTISSER API',ffmpeg:'configured-at-runtime'}));
+app.get('/health',(req,res)=>res.json({ok:true,service:'SEIF CONVERTISSER API',ffmpeg:'configured-at-runtime',youtubePoTokenProvider:'starting-or-running'}));
 app.get('/api/search',(req,res)=>res.status(501).json({error:'Search connectors are not configured. Add approved platform search providers before enabling live results.'}));
 
 const supportedHosts=['youtube.com','youtu.be','youtube-nocookie.com','tiktok.com','instagram.com','x.com','twitter.com','facebook.com','fb.watch','twitch.tv','dailymotion.com','dai.ly'];
@@ -52,7 +58,7 @@ function runYtDlp(args,{maxOutput=2_000_000,timeoutMs=60_000}={}){
   return new Promise((resolve,reject)=>{
     let authArgs;
     try{authArgs=getYtDlpCookieArgs()}catch(err){reject(err);return}
-    const p=spawn(process.env.YTDLP_PATH||'yt-dlp',['--ignore-config','--socket-timeout','8','--retries','1','--extractor-retries','1',...authArgs,...args],{stdio:['ignore','pipe','pipe']});
+    const p=spawn(process.env.YTDLP_PATH||'yt-dlp',['--ignore-config','--socket-timeout','8','--retries','1','--extractor-retries','1','--extractor-args','youtube:player-client=mweb',...authArgs,...args],{stdio:['ignore','pipe','pipe']});
     let stdout='',stderr='',settled=false;
     const finish=(err,value)=>{
       if(settled)return;
