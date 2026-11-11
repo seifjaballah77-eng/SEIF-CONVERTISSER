@@ -201,3 +201,93 @@ body.light .media-status{background:#f7f8fc;border-color:#e0e3eb}
 body.light .media-result{background:linear-gradient(135deg,#f6f7fc,#fff);border-color:#e0e3eb}
 body.light .file-drop,body.light .queue-item,body.light .history-item{background:#f8f9fc;border-color:#e0e3eb}
 body.light .secondary-btn,body.light .mini-btn{background:#eef0f6;border-color:#dce1eb;color:#30394b}
+
+
+/* Gemini-inspired workspace theme — applied without replacing app functionality */
+:root{
+  color-scheme:dark;
+  --bg:#131314;
+  --side:#1e1f20;
+  --panel:#1e1f20;
+  --panel2:#252629;
+  --line:#3c4043;
+  --text:#e3e3e3;
+  --muted:#a1a5aa;
+  --accent:#8ab4f8;
+  --accent2:#a78bfa;
+  --shadow:0 8px 28px #0005;
+}
+body{background:var(--bg);color:var(--text)}
+.sidebar{background:var(--side);border-left-color:var(--line)}
+.brand{border-bottom-color:var(--line)}
+.brand-mark{background:linear-gradient(135deg,#7c3aed,#8b5cf6);box-shadow:0 5px 20px #7c3aed40}
+.brand small,.nav-caption,.sidebar-foot,.version{color:#9aa0a6}
+.nav-link{color:#b5b8bd;border-radius:10px}
+.nav-link i{color:#aeb4bf}
+.nav-link:hover,.nav-link.active{background:#2d2e30;color:#fff;box-shadow:none}
+.nav-link.active{border-right:2px solid #8b5cf6}
+.nav-link.active i{color:#c4b5fd}
+.topbar{background:#131314ed;border-bottom-color:var(--line)}
+.crumb{color:#9aa0a6}
+.crumb b{color:#e3e3e3}
+.local-badge,.soft-tag,.chip{background:#252629;border-color:var(--line);color:#c2c5ca}
+.welcome{background:radial-gradient(ellipse at 12% 20%,#7c3aed20,transparent 44%),linear-gradient(115deg,#202124,#1b1c1e 65%,#24202c);border-color:#45464a}
+.eyebrow{color:#c4b5fd}
+.welcome h1 em{color:#c4b5fd}
+.quick-panel,.panel,.platform-card{background:var(--side);border-color:var(--line)}
+.tool-card{background:#202124;border-color:var(--line)}
+.tool-card:hover{border-color:#8b5cf6;box-shadow:0 8px 24px #7c3aed18}
+.tool-icon{background:#7c3aed24;color:#c4b5fd}
+.section-heading h2,.platform-directory h2{color:#f1f1f1}
+.section-heading p,.platform-directory p,.page-head p{color:#a1a5aa}
+.input,input,select,textarea{
+  background:#131314;border:1px solid #45464a;color:#e3e3e3;border-radius:10px
+}
+input:focus,select:focus,textarea:focus{
+  border-color:#8ab4f8;box-shadow:0 0 0 3px #8ab4f825
+}
+input::placeholder,textarea::placeholder{color:#85898f}
+.primary-btn{
+  background:#7c3aed;color:#fff;border:0;
+  box-shadow:0 4px 14px #7c3aed30
+}
+.primary-btn::before,.primary-btn::after{display:none}
+.primary-btn:hover{background:#6d28d9;filter:none;box-shadow:0 6px 18px #7c3aed45}
+.secondary-btn,.mini-btn{background:#2d2e30;border-color:#4a4c50;color:#e3e3e3}
+.secondary-btn:hover,.mini-btn:hover{background:#38393c;border-color:#696b70}
+.danger-btn{background:#351f25;border-color:#75404a;color:#ffb4bd}
+.notice{background:#202124;border-color:#414348;color:#b9bdc4}
+.notice>span,.search-box>span,.empty-icon{color:#c4b5fd}
+.media-status{background:#171819;border-color:#3c4043;color:#b7bbc2}
+.media-status.is-loading{background:linear-gradient(110deg,#202124,#292136,#1c242b);border-color:#66518e;color:#eee8ff}
+.media-result{background:linear-gradient(135deg,#252629,#1b1c1e);border-color:#48494e}
+.file-drop{background:#171819;border-color:#555960;color:#bfc3ca}
+.queue-item,.history-item{background:#171819;border-color:#3c4043}
+.timeline{background:#3c4043}
+.operation-loader{background:linear-gradient(110deg,#202124,#29232f);border-color:#45464a;color:#e3e3e3}
+.loader-track i{background:linear-gradient(90deg,#8ab4f8,#8b5cf6,#c4b5fd)}
+.status-dot{background:#81c995;box-shadow:0 0 9px #81c99570}
+footer{border-top-color:var(--line);color:#8b9097}
+.icon-btn{background:#252629;border-color:#45464a;color:#e3e3e3}
+.icon-btn:hover{border-color:#8b5cf6;color:#fff}
+body.light{
+  color-scheme:light;--bg:#f5f5f7;--side:#fff;--panel:#fff;--panel2:#f0f0f3;
+  --line:#e0e0e5;--text:#202124;--muted:#6d7178;--accent:#6d5bd0;
+}
+body.light .sidebar,body.light .topbar{background:#fff;border-color:#e0e0e5}
+body.light .brand,body.light .nav-link{color:#555b65}
+body.light .nav-link:hover,body.light .nav-link.active{background:#f0edf9;color:#292333}
+body.light .nav-link.active i{color:#7048c8}
+body.light .welcome{background:linear-gradient(115deg,#f0edfa,#f7f6fb);border-color:#e1dced}
+body.light .welcome h1,body.light .section-heading h2,body.light .platform-directory h2{color:#202124}
+body.light .quick-panel,body.light .panel,body.light .platform-card,body.light .tool-card{background:#fff;border-color:#e0e0e5}
+body.light .tool-card{color:#202124}
+body.light input,body.light select,body.light textarea{background:#f8f8fa;color:#202124;border-color:#d9d9df}
+body.light .secondary-btn,body.light .mini-btn{background:#f0f0f4;border-color:#d9d9df;color:#333}
+body.light .notice,body.light .media-status,body.light .queue-item,body.light .history-item{background:#f4f4f7;border-color:#e0e0e5;color:#555}
+body.light .media-result{background:#fff;border-color:#e0e0e5}
+@media(max-width:760px){
+  .sidebar{background:#1e1f20}
+  body.light .sidebar{background:#fff}
+  .topbar{backdrop-filter:blur(12px)}
+}
