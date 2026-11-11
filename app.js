@@ -25,7 +25,7 @@ function detect(url){try{const h=new URL(url).hostname.toLowerCase();const has=d
 function validUrl(s){try{const u=new URL(s);return ['http:','https:'].includes(u.protocol)}catch{return false}}
 let currentMedia=null,quickInspectTimer=null,inspectionTask=null;
 function mediaTypeLabel(t){return t==='video'?'فيديو':t==='image'?'صورة':t==='audio'?'صوت':'وسائط'}
-function setMediaStatus(el,message,kind=''){if(!el)return;el.textContent=message;el.className='media-status '+kind}
+function setMediaStatus(el,message,kind=''){if(!el)return;el.textContent=message;const loading=kind==='loading'||/^جارٍ|^تم تجهيز طلب التنزيل/.test(message);el.className='media-status '+kind+(loading?' is-loading':'')}
 function renderMediaResult(url,data){
   const box=$('#mediaResult');if(!box)return;
   const thumb=data.thumbnail&&/^https:\/\//i.test(data.thumbnail)?data.thumbnail:'';
@@ -38,7 +38,7 @@ async function inspectMedia(url,statusEl=$('#mediaStatus')){
   if(inspectionTask&&inspectionTask.url===url)return inspectionTask.promise;
   const base=getBackend();
   if(!base){setMediaStatus(statusEl,'تم التعرف على '+detect(url)+' من الرابط. لتنزيل الملف فعلياً يجب نشر خادم المعالجة وربطه من الإعدادات.','error');return false}
-  setMediaStatus(statusEl,'جارٍ التعرف على المنصة وفحص نوع المحتوى والجودات…');
+  setMediaStatus(statusEl,'جارٍ التعرف على المنصة وفحص نوع المحتوى والجودات…','loading');
   const promise=(async()=>{try{
     const response=await fetch(base+'/api/media/inspect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
     const data=await response.json();if(!response.ok)throw new Error(data.error||'تعذر تحليل الرابط');
