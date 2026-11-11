@@ -99,7 +99,7 @@ app.get('/api/media/download',async(req,res)=>{
     const template=path.join(work,'%(title).90B-%(id)s.%(ext)s');
     const downloadArgs=['--no-warnings','--no-progress','--no-playlist','--no-part','--format',format,'--output',template,'--print','after_move:filepath'];
     if(quality==='audio')downloadArgs.push('--extract-audio','--audio-format','mp3','--audio-quality','0');
-    await runYtDlp([...downloadArgs,url],{maxOutput:100000});
+    await runYtDlp([...downloadArgs,url],{maxOutput:100000,timeoutMs:10*60_000});
     const names=await fs.promises.readdir(work);
     if(!names.length)throw new Error('لم يُنشئ المصدر ملفاً قابلاً للتنزيل.');
     const file=path.join(work,names[0]);
