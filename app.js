@@ -13,7 +13,7 @@ $$('[data-go]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.go)));
 $('#platformChips').innerHTML=platforms.map(p=>`<span class="chip">${p}</span>`).join('');
 $('#platformDirectory').innerHTML=platforms.map(p=>`<div class="platform-card"><b>${p}</b><small>فيديو · صور · منشورات · بث حسب دعم المنصة</small></div>`).join('');
 const options='<option value="auto">اكتشاف تلقائي</option>'+platforms.map(p=>`<option>${p}</option>`).join('');
-$('#fetchPlatform').innerHTML=options;$('#searchPlatform').innerHTML='<option value="all">جميع المنصات</option>'+platforms.map(p=>`<option>${p}</option>`).join('');
+$('#searchPlatform').innerHTML='<option value="all">جميع المنصات</option>'+platforms.map(p=>`<option>${p}</option>`).join('');
 function readHistory(){try{return JSON.parse(localStorage.getItem(KEY)||'[]').filter(x=>Date.now()-x.time<30*864e5)}catch{return []}}
 function saveHistory(items){localStorage.setItem(KEY,JSON.stringify(items));updateCount()}
 function addHistory(url,platform='غير محددة',name=''){if(!url)return;let items=readHistory().filter(x=>x.url!==url);items.unshift({url,platform,name,time:Date.now()});saveHistory(items.slice(0,300));renderHistory()}
@@ -21,11 +21,52 @@ function updateCount(){$('#historyCount').textContent=readHistory().length}
 function renderHistory(){const items=readHistory();saveHistory(items);$('#historyList').innerHTML=items.length?items.map((x,i)=>`<div class="history-item"><div style="min-width:0;flex:1"><div class="url">${esc(x.url)}</div><div class="history-meta">${esc(x.platform)} · ${new Date(x.time).toLocaleString('ar')}</div></div><button class="mini-btn" data-copy="${i}">نسخ</button><button class="mini-btn" data-open="${i}">فتح</button><button class="mini-btn" data-remove="${i}">حذف</button></div>`).join(''):'<div class="panel empty-state"><div class="empty-icon">◷</div><h3>السجل فارغ</h3><p>ستظهر الروابط التي تضيفها هنا لمدة 30 يوماً.</p></div>';$$('[data-copy]').forEach(b=>b.onclick=()=>copy(readHistory()[+b.dataset.copy].url));$$('[data-open]').forEach(b=>b.onclick=()=>window.open(readHistory()[+b.dataset.open].url,'_blank','noopener'));$$('[data-remove]').forEach(b=>b.onclick=()=>{let a=readHistory();a.splice(+b.dataset.remove,1);saveHistory(a);renderHistory()})}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 async function copy(s){try{await navigator.clipboard.writeText(s);toast('تم نسخ الرابط')}catch{toast('تعذر النسخ؛ تحقق من إذن الحافظة')}}
-function detect(url){try{const h=new URL(url).hostname.toLowerCase();if(h.includes('youtu'))return'YouTube';if(h.includes('tiktok'))return'TikTok';if(h.includes('instagram'))return'Instagram';if(h==='x.com'||h.includes('twitter'))return'X (Twitter)';if(h.includes('facebook')||h==='fb.watch')return'Facebook';if(h.includes('twitch'))return'Twitch';if(h.includes('dailymotion'))return'Dailymotion'}catch{}return'غير محددة'}
+function detect(url){try{const h=new URL(url).hostname.toLowerCase();const has=d=>h===d||h.endsWith('.'+d);if(has('youtube.com')||has('youtu.be')||has('youtube-nocookie.com'))return'YouTube';if(has('tiktok.com'))return'TikTok';if(has('instagram.com'))return'Instagram';if(has('x.com')||has('twitter.com'))return'X (Twitter)';if(has('facebook.com')||has('fb.watch'))return'Facebook';if(has('twitch.tv'))return'Twitch';if(has('dailymotion.com')||has('dai.ly'))return'Dailymotion'}catch{}return'منصة غير معروفة'}
 function validUrl(s){try{const u=new URL(s);return ['http:','https:'].includes(u.protocol)}catch{return false}}
-$('#quickLinkForm').onsubmit=e=>{e.preventDefault();const u=$('#quickLink').value.trim();if(!validUrl(u))return toast('أدخل رابطاً صحيحاً يبدأ بـ https://');addHistory(u,detect(u));$('#fetchUrl').value=u;$('#fetchPlatform').value=detect(u)==='غير محددة'?'auto':detect(u);go('fetch');$('#fetchFeedback').textContent='تم حفظ الرابط في السجل. ربط المحلل بالخادم مطلوب لجلب بيانات المصدر.'};
-$('#fetchForm').onsubmit=e=>{e.preventDefault();const u=$('#fetchUrl').value.trim();if(!validUrl(u))return;const p=$('#fetchPlatform').value==='auto'?detect(u):$('#fetchPlatform').value;addHistory(u,p,$('#fileName').value.trim());$('#fetchFeedback').className='feedback success';$('#fetchFeedback').textContent='تم التحقق من صيغة الرابط وحفظه في السجل. لم يتم تنزيل الملف بعد؛ يلزم ربط موصل المنصة بالخادم.'};
-$('#copyFetch').onclick=()=>copy($('#fetchUrl').value.trim());
+let currentMedia=null,quickInspectTimer=null,inspectionTask=null;
+function mediaTypeLabel(t){return t==='video'?'فيديو':t==='image'?'صورة':t==='audio'?'صوت':'وسائط'}
+function setMediaStatus(el,message,kind=''){if(!el)return;el.textContent=message;el.className='media-status '+kind}
+function renderMediaResult(url,data){
+  const box=$('#mediaResult');if(!box)return;
+  const thumb=data.thumbnail&&/^https:\/\//i.test(data.thumbnail)?data.thumbnail:'';
+  const platform=detect(url)==='منصة غير معروفة'?data.platform:detect(url);
+  box.hidden=false;
+  box.innerHTML=`<div class="media-result-main">${thumb?`<img class="media-thumb" src="${esc(thumb)}" alt="">`:'<div class="media-thumb thumb-placeholder">▶</div>'}<div class="media-details"><div class="media-tags"><span class="chip">${esc(platform)}</span><span class="chip">${mediaTypeLabel(data.mediaType)}</span></div><b>${esc(data.title||'وسائط من المصدر')}</b><small>${data.duration?Math.floor(data.duration/60)+':'+String(Math.floor(data.duration%60)).padStart(2,'0'):'المعلومات المتاحة من المصدر'}</small></div></div><div class="media-download-row"><label>الجودة<select id="mediaQuality">${(data.formats||[{value:'best',label:'أفضل جودة متاحة'}]).map(x=>`<option value="${esc(x.value)}">${esc(x.label)}</option>`).join('')}</select></label><button class="primary-btn" id="downloadMediaBtn">تنزيل الملف الآن ↓</button></div><p class="media-note">سيتم تنزيل أفضل نسخة متاحة من المصدر دون ادعاء جودة غير موجودة.</p>`;
+  $('#downloadMediaBtn').onclick=()=>downloadMedia(url);
+}
+async function inspectMedia(url,statusEl=$('#mediaStatus')){
+  if(inspectionTask&&inspectionTask.url===url)return inspectionTask.promise;
+  const base=getBackend();
+  if(!base){setMediaStatus(statusEl,'تم التعرف على '+detect(url)+' من الرابط. لتنزيل الملف فعلياً يجب نشر خادم المعالجة وربطه من الإعدادات.','error');return false}
+  setMediaStatus(statusEl,'جارٍ التعرف على المنصة وفحص نوع المحتوى والجودات…');
+  const promise=(async()=>{try{
+    const response=await fetch(base+'/api/media/inspect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+    const data=await response.json();if(!response.ok)throw new Error(data.error||'تعذر تحليل الرابط');
+    currentMedia={url,data};addHistory(url,detect(url),data.title||'');
+    if(statusEl===$('#mediaStatus'))renderMediaResult(url,data);
+    setMediaStatus(statusEl,'تم التعرف تلقائياً: '+(detect(url)==='منصة غير معروفة'?data.platform:detect(url))+' · '+mediaTypeLabel(data.mediaType)+'. أصبح الملف جاهزاً للتنزيل.','success');
+    return true;
+  }catch(err){currentMedia=null;setMediaStatus(statusEl,err.message,'error');return false}})();
+  inspectionTask={url,promise};const result=await promise;inspectionTask=null;return result;
+}
+async function downloadMedia(url,statusEl=$('#mediaStatus')){
+  if(!validUrl(url)){setMediaStatus(statusEl,'أدخل رابطاً صحيحاً أولاً.','error');return}
+  if(!currentMedia||currentMedia.url!==url){const ok=await inspectMedia(url,statusEl);if(!ok)return}
+  const base=getBackend();if(!base)return;
+  const quality=$('#mediaQuality')?.value||'best';
+  addHistory(url,detect(url),currentMedia?.data?.title||'');
+  setMediaStatus(statusEl,'تم تجهيز طلب التنزيل. إذا كان المصدر يسمح بالوصول، سيبدأ حفظ الملف الآن.','success');
+  const a=document.createElement('a');a.href=base+'/api/media/download?url='+encodeURIComponent(url)+'&quality='+encodeURIComponent(quality);a.rel='noopener';document.body.appendChild(a);a.click();a.remove();
+}
+$('#quickLink').addEventListener('input',e=>{
+  const url=e.target.value.trim();currentMedia=null;$('#mediaResult').hidden=true;
+  if(!url){setMediaStatus($('#mediaStatus'),'ألصق الرابط وسيتم التعرف على المصدر تلقائياً.');return}
+  if(!validUrl(url))return;
+  setMediaStatus($('#mediaStatus'),'تم التعرف على '+detect(url)+' من عنوان الرابط. جارٍ فحص الوسائط…');
+  clearTimeout(quickInspectTimer);quickInspectTimer=setTimeout(()=>inspectMedia(url),650);
+});
+$('#quickLinkForm').onsubmit=async e=>{e.preventDefault();const url=$('#quickLink').value.trim();if(!validUrl(url))return setMediaStatus($('#mediaStatus'),'أدخل رابطاً صحيحاً يبدأ بـ https://.','error');await downloadMedia(url)};
+$('#fetchForm').onsubmit=async e=>{e.preventDefault();const url=$('#fetchUrl').value.trim();if(!validUrl(url))return;await downloadMedia(url,$('#fetchFeedback'))};
 $('#searchForm').onsubmit=async e=>{e.preventDefault();const q=$('#searchQuery').value.trim();if(!q)return;$('#searchState').className='empty-state';$('#searchState').innerHTML='<div class="empty-icon">⌕</div><h3>البحث غير مفعّل بعد</h3><p>واجهة البحث جاهزة. أضف موصلات بحث رسمية أو مصادر عامة مسموحاً بها في الخادم لعرض نتائج حقيقية؛ لن نعرض نتائج تجريبية على أنها حقيقية.</p>';$('#searchResults').innerHTML='';const base=getBackend();if(base){try{const r=await fetch(base+'/api/search?q='+encodeURIComponent(q)+'&platform='+encodeURIComponent($('#searchPlatform').value));if(r.ok){const data=await r.json();renderResults(data.results||[]);return}}catch{}}};
 function renderResults(rows){$('#searchState').textContent=rows.length?'نتائج البحث':'لم يتم العثور على نتائج';$('#searchResults').innerHTML=rows.map(r=>`<article class="platform-card"><b>${esc(r.title||'بدون عنوان')}</b><small>${esc(r.platform||'')} · ${esc(r.duration||'')}</small><p>${esc(r.description||'')}</p><button class="mini-btn" data-result-copy="${esc(r.url||'')}">نسخ الرابط</button></article>`).join('');$$('[data-result-copy]').forEach(b=>b.onclick=()=>copy(b.dataset.resultCopy))}
 $('#addBatch').onclick=()=>{const urls=$('#batchInput').value.split(/\n+/).map(x=>x.trim()).filter(Boolean);let added=0;for(const u of urls){if(validUrl(u)){addHistory(u,detect(u));if(!batch.includes(u)){batch.push(u);added++}}}renderBatch();toast(added+' رابط أضيف إلى الطابور')};
