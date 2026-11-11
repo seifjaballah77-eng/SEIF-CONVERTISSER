@@ -64,7 +64,7 @@ app.post('/api/media/inspect',async(req,res)=>{
   try{
     const url=checkedMediaUrl(req.body&&req.body.url);
     const raw=await runYtDlp(['--dump-single-json','--skip-download','--no-warnings','--no-progress','--no-playlist',url]);
-    const info=JSON.parse(raw.split(/\\r?\\n/).filter(Boolean).slice(-1)[0]);
+    const info=JSON.parse(raw);
     res.json({ok:true,...mediaSummary(info)});
   }catch(err){res.status(422).json({error:err.message||'تعذر تحليل الرابط.'});}
 });
@@ -81,7 +81,7 @@ app.get('/api/media/download',async(req,res)=>{
     const downloadArgs=['--no-warnings','--no-progress','--no-playlist','--no-part','--format',format,'--output',template,'--print','after_move:filepath'];
     if(quality==='audio')downloadArgs.push('--extract-audio','--audio-format','mp3','--audio-quality','0');
     await runYtDlp([...downloadArgs,url],{maxOutput:100000});
-        const names=await fs.promises.readdir(work);
+    const names=await fs.promises.readdir(work);
     if(!names.length)throw new Error('لم يُنشئ المصدر ملفاً قابلاً للتنزيل.');
     const file=path.join(work,names[0]);
     const stat=await fs.promises.stat(file);
@@ -91,7 +91,7 @@ app.get('/api/media/download',async(req,res)=>{
     res.setHeader('Content-Type',mime);
     res.setHeader('Content-Length',stat.size);
     const downloadName=safeBase(path.parse(file).name)+ext;
-    res.setHeader('Content-Disposition',\"attachment; filename*=UTF-8''\"+encodeURIComponent(downloadName));
+    res.setHeader('Content-Disposition',"attachment; filename*=UTF-8''"+encodeURIComponent(downloadName));
     const stream=fs.createReadStream(file);
     stream.on('error',()=>{if(!res.headersSent)res.status(500).end();});
     stream.on('close',()=>fs.promises.rm(work,{recursive:true,force:true}).catch(()=>{}));
