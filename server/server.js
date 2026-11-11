@@ -31,14 +31,33 @@ function checkedMediaUrl(raw){
   if(u.username||u.password)throw new Error('الروابط التي تتضمن بيانات دخول غير مسموحة.');
   return u.toString();
 }
-function runYtDlp(args,{maxOutput=2_000_000}={}){
+function runYtDlp(args,{maxOutput=2_000_000,timeoutMs=60_000}={}){
   return new Promise((resolve,reject)=>{
     const p=spawn(process.env.YTDLP_PATH||'yt-dlp',['--ignore-config','--no-cache-dir',...args],{stdio:['ignore','pipe','pipe']});
-    let stdout='',stderr='';
-    p.stdout.on('data',d=>{stdout+=d.toString();if(stdout.length>maxOutput){p.kill('SIGKILL');reject(new Error('استجابة المصدر كبيرة جداً.'));}});
+    let stdout='',stderr='',settled=false;
+    const finish=(err,value)=>{
+      if(settled)return;
+      settled=true;
+      clearTimeout(timer);
+      if(err)reject(err);else resolve(value);
+    };
+    const timer=setTimeout(()=>{
+      p.kill('SIGKILL');
+      finish(new Error('انتهت مهلة الاتصال بالمصدر. جرّب الرابط لاحقاً أو تحقق من أن الفيديو متاح للعامة.'));
+    },timeoutMs);
+    p.stdout.on('data',d=>{
+      stdout+=d.toString();
+      if(stdout.length>maxOutput){
+        p.kill('SIGKILL');
+        finish(new Error('استجابة المصدر كبيرة جداً.'));
+      }
+    });
     p.stderr.on('data',d=>{stderr+=d.toString();if(stderr.length>12000)stderr=stderr.slice(-12000);});
-    p.on('error',reject);
-    p.on('close',code=>code===0?resolve(stdout.trim()):reject(new Error(stderr.trim().slice(-1300)||'تعذر جلب الوسائط من المصدر.')));
+    p.on('error',err=>finish(err));
+    p.on('close',code=>{
+      if(code===0)finish(null,stdout.trim());
+      else finish(new Error(stderr.trim().slice(-1300)||'تعذر جلب الوسائط من المصدر.'));
+    });
   });
 }
 function mediaSummary(info){
