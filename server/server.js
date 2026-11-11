@@ -33,7 +33,7 @@ function checkedMediaUrl(raw){
 }
 function runYtDlp(args,{maxOutput=2_000_000,timeoutMs=60_000}={}){
   return new Promise((resolve,reject)=>{
-    const p=spawn(process.env.YTDLP_PATH||'yt-dlp',['--ignore-config','--no-cache-dir',...args],{stdio:['ignore','pipe','pipe']});
+    const p=spawn(process.env.YTDLP_PATH||'yt-dlp',['--ignore-config','--socket-timeout','8','--retries','1','--extractor-retries','1',...args],{stdio:['ignore','pipe','pipe']});
     let stdout='',stderr='',settled=false;
     const finish=(err,value)=>{
       if(settled)return;
@@ -82,7 +82,7 @@ function mediaSummary(info){
 app.post('/api/media/inspect',async(req,res)=>{
   try{
     const url=checkedMediaUrl(req.body&&req.body.url);
-    const raw=await runYtDlp(['--dump-single-json','--skip-download','--no-warnings','--no-progress','--no-playlist',url]);
+    const raw=await runYtDlp(['--dump-single-json','--skip-download','--no-warnings','--no-progress','--no-playlist',url],{timeoutMs:20_000});
     const info=JSON.parse(raw);
     res.json({ok:true,...mediaSummary(info)});
   }catch(err){res.status(422).json({error:err.message||'تعذر تحليل الرابط.'});}
