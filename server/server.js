@@ -22,6 +22,85 @@ const upload=multer({storage:multer.memoryStorage(),limits:{fileSize:MAX_UPLOAD_
 app.get('/health',(req,res)=>res.json({ok:true,service:'SEIF CONVERTISSER API',ffmpeg:'configured-at-runtime'}));
 app.get('/api/search',(req,res)=>res.status(501).json({error:'Search connectors are not configured. Add approved platform search providers before enabling live results.'}));
 
+const supportedHosts=['youtube.com','youtu.be','youtube-nocookie.com','tiktok.com','instagram.com','x.com','twitter.com','facebook.com','fb.watch','twitch.tv','dailymotion.com','dai.ly'];
+function checkedMediaUrl(raw){
+  let u;try{u=new URL(raw)}catch{throw new Error('الرابط غير صالح.')}
+  if(!['http:','https:'].includes(u.protocol))throw new Error('يسمح بروابط HTTP و HTTPS فقط.');
+  const host=u.hostname.toLowerCase();
+  if(!supportedHosts.some(d=>host===d||host.endsWith('.'+d)))throw new Error('هذه المنصة غير مدعومة حالياً.');
+  if(u.username||u.password)throw new Error('الروابط التي تتضمن بيانات دخول غير مسموحة.');
+  return u.toString();
+}
+function runYtDlp(args,{maxOutput=2_000_000}={}){
+  return new Promise((resolve,reject)=>{
+    const p=spawn(process.env.YTDLP_PATH||'yt-dlp',['--ignore-config','--no-cache-dir',...args],{stdio:['ignore','pipe','pipe']});
+    let stdout='',stderr='';
+    p.stdout.on('data',d=>{stdout+=d.toString();if(stdout.length>maxOutput){p.kill('SIGKILL');reject(new Error('استجابة المصدر كبيرة جداً.'));}});
+    p.stderr.on('data',d=>{stderr+=d.toString();if(stderr.length>12000)stderr=stderr.slice(-12000);});
+    p.on('error',reject);
+    p.on('close',code=>code===0?resolve(stdout.trim()):reject(new Error(stderr.trim().slice(-1300)||'تعذر جلب الوسائط من المصدر.')));
+  });
+}
+function mediaSummary(info){
+  const fs=Array.isArray(info.formats)?info.formats:[];
+  const imageExts=new Set(['jpg','jpeg','png','webp','gif','avif']);
+  const imageFormats=fs.filter(x=>imageExts.has(String(x.ext||'').toLowerCase()));
+  const maxHeight=Math.max(0,...fs.map(x=>Number(x.height)||0));
+  const hasVideo=fs.some(x=>x.vcodec&&x.vcodec!=='none');
+  const hasAudio=fs.some(x=>x.acodec&&x.acodec!=='none');
+  const imageOnly=imageFormats.length>0&&!hasVideo;
+  return {
+    title:info.title||info.fulltitle||'وسائط من المصدر',
+    platform:info.extractor_key||info.extractor||'مصدر معروف',
+    thumbnail:info.thumbnail||((info.thumbnails||[]).slice(-1)[0]||{}).url||null,
+    duration:Number(info.duration)||null,
+    mediaType:imageOnly?'image':hasVideo?'video':hasAudio?'audio':'unknown',
+    maxHeight,
+    formats:[{value:'best',label:'أفضل جودة متاحة'}]
+      .concat([2160,1440,1080,720,480,360].filter(h=>maxHeight>=h).map(h=>({value:String(h),label:h+'p'})))
+  };
+}
+app.post('/api/media/inspect',async(req,res)=>{
+  try{
+    const url=checkedMediaUrl(req.body&&req.body.url);
+    const raw=await runYtDlp(['--dump-single-json','--skip-download','--no-warnings','--no-progress','--no-playlist',url]);
+    const info=JSON.parse(raw.split(/\\r?\\n/).filter(Boolean).slice(-1)[0]);
+    res.json({ok:true,...mediaSummary(info)});
+  }catch(err){res.status(422).json({error:err.message||'تعذر تحليل الرابط.'});}
+});
+const qualitySelectors={best:'bestvideo*+bestaudio/best','2160':'bestvideo*[height<=2160]+bestaudio/best[height<=2160]','1440':'bestvideo*[height<=1440]+bestaudio/best[height<=1440]','1080':'bestvideo*[height<=1080]+bestaudio/best[height<=1080]','720':'bestvideo*[height<=720]+bestaudio/best[height<=720]','480':'bestvideo*[height<=480]+bestaudio/best[height<=480]','360':'bestvideo*[height<=360]+bestaudio/best[height<=360]','audio':'bestaudio/best'};
+app.get('/api/media/download',async(req,res)=>{
+  let work;
+  try{
+    const url=checkedMediaUrl(req.query.url);
+    const quality=String(req.query.quality||'best');
+    const format=qualitySelectors[quality]||qualitySelectors.best;
+    work=path.join(os.tmpdir(),'seif-media-'+crypto.randomUUID());
+    await fs.promises.mkdir(work,{recursive:true});
+    const template=path.join(work,'%(title).90B-%(id)s.%(ext)s');
+    await runYtDlp(['--no-warnings','--no-progress','--no-playlist','--no-part','--format',format,'--output',template,'--print','after_move:filepath',url],{maxOutput:100000});
+    const output=(await fs.promises.readdir(work)).map(n=>path.join(work,n)).find(async p=>(await fs.promises.stat(p)).isFile());
+    const names=await fs.promises.readdir(work);
+    if(!names.length)throw new Error('لم يُنشئ المصدر ملفاً قابلاً للتنزيل.');
+    const file=path.join(work,names[0]);
+    const stat=await fs.promises.stat(file);
+    if(!stat.isFile())throw new Error('الملف الناتج غير صالح.');
+    const ext=path.extname(file).toLowerCase();
+    const mime=({'.mp4':'video/mp4','.webm':'video/webm','.mkv':'video/x-matroska','.mp3':'audio/mpeg','.m4a':'audio/mp4','.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.webp':'image/webp','.gif':'image/gif'})[ext]||'application/octet-stream';
+    res.setHeader('Content-Type',mime);
+    res.setHeader('Content-Length',stat.size);
+    res.setHeader('Content-Disposition','attachment; filename="seif-download'+ext+'"');
+    const stream=fs.createReadStream(file);
+    stream.on('error',()=>{if(!res.headersSent)res.status(500).end();});
+    stream.on('close',()=>fs.promises.rm(work,{recursive:true,force:true}).catch(()=>{}));
+    stream.pipe(res);
+  }catch(err){
+    if(work)await fs.promises.rm(work,{recursive:true,force:true}).catch(()=>{});
+    if(!res.headersSent)res.status(422).json({error:err.message||'تعذر تنزيل الوسائط.'});
+  }
+});
+
+
 function runFFmpeg(args){return new Promise((resolve,reject)=>{const p=spawn(process.env.FFMPEG_PATH||'ffmpeg',['-hide_banner','-loglevel','error','-y',...args],{stdio:['ignore','ignore','pipe']});let err='';p.stderr.on('data',d=>err+=d.toString());p.on('error',reject);p.on('close',code=>code===0?resolve():reject(new Error(err.slice(-1800)||'FFmpeg failed')));});}
 function safeBase(s){return String(s||'seif-output').normalize('NFKC').replace(/[^\p{L}\p{N}._-]+/gu,'-').replace(/^-+|-+$/g,'').slice(0,90)||'seif-output';}
 function num(v,fallback,min,max){const n=Number(v);return Number.isFinite(n)?Math.min(max,Math.max(min,n)):fallback;}
