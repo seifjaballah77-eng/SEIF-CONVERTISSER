@@ -206,4 +206,15 @@ app.post('/api/process/:action',upload.single('file'),async(req,res)=>{
   }
 });
 app.use((err,req,res,next)=>{if(err instanceof multer.MulterError)return res.status(413).json({error:'Upload too large or invalid.'});res.status(500).json({error:err.message||'Server error.'});});
-app.listen(PORT,()=>console.log('SEIF CONVERTISSER API listening on '+PORT));
+async function startServer(){
+  // Wait for the local token provider before accepting media requests.
+  for(let attempt=0;attempt<30;attempt++){
+    try{
+      const response=await fetch('http://127.0.0.1:4416/ping',{signal:AbortSignal.timeout(1500)});
+      if(response.ok)break;
+    }catch{}
+    await new Promise(resolve=>setTimeout(resolve,1000));
+  }
+  app.listen(PORT,()=>console.log('SEIF CONVERTISSER API listening on '+PORT));
+}
+startServer().catch(err=>{console.error('Server startup failed:',err);process.exit(1);});
