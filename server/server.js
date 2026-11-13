@@ -13,7 +13,8 @@ const crypto=require('node:crypto');
 const potProvider=spawn(process.execPath,[process.env.POT_PROVIDER_PATH||'/opt/bgutil-ytdlp-pot-provider/server/build/main.js','--host','127.0.0.1','--port','4416'],{stdio:['ignore','ignore','pipe']});
 potProvider.stderr.on('data',d=>console.error('[bgutil-pot]',d.toString().trim()));
 potProvider.on('error',err=>console.error('[bgutil-pot] failed to start:',err.message));
-potProvider.on('exit',(code)=>console.error('[bgutil-pot] exited with code',code));
+potProvider.on('exit',(code)=>{potProviderReady=false;console.error('[bgutil-pot] exited with code',code);});
+let potProviderReady=false;
 
 const app=express();
 const PORT=process.env.PORT||8080;
@@ -25,7 +26,7 @@ app.use(express.json({limit:'1mb'}));
 app.use('/api/',rateLimit({windowMs:60_000,limit:30,standardHeaders:true,legacyHeaders:false}));
 const upload=multer({storage:multer.memoryStorage(),limits:{fileSize:MAX_UPLOAD_MB*1024*1024,files:1}});
 
-app.get('/health',(req,res)=>res.json({ok:true,service:'SEIF CONVERTISSER API',ffmpeg:'configured-at-runtime',youtubePoTokenProvider:'starting-or-running'}));
+app.get('/health',(req,res)=>res.json({ok:true,service:'SEIF CONVERTISSER API',ffmpeg:'configured-at-runtime',youtubePoTokenProvider:potProviderReady?'ready':'unavailable'}));
 app.get('/api/search',(req,res)=>res.status(501).json({error:'Search connectors are not configured. Add approved platform search providers before enabling live results.'}));
 
 const supportedHosts=['youtube.com','youtu.be','youtube-nocookie.com','tiktok.com','instagram.com','x.com','twitter.com','facebook.com','fb.watch','twitch.tv','dailymotion.com','dai.ly'];
@@ -74,10 +75,11 @@ function runYtDlp(args,{maxOutput=2_000_000,timeoutMs=60_000}={}){
     const targetUrl=args.find(x=>typeof x==='string'&&/^https?:\/\//i.test(x));
     const isYouTube=targetUrl&&(()=>{try{const h=new URL(targetUrl).hostname.toLowerCase();return h==='youtube.com'||h.endsWith('.youtube.com')||h==='youtu.be'||h.endsWith('.youtu.be')||h==='youtube-nocookie.com'||h.endsWith('.youtube-nocookie.com')}catch{return false}})();
     try{authArgs=isYouTube?getYtDlpCookieArgs():[]}catch(err){reject(err);return}
+    const youtubeProviderArgs=isYouTube?['--extractor-args','youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416']:[];
     // Let current yt-dlp select the appropriate player clients automatically.
     // This is important for music.youtube.com, where forcing mweb can suppress
     // yt-dlp's dedicated web_music client selection.
-    const p=spawn(process.env.YTDLP_PATH||'yt-dlp',['--ignore-config','--socket-timeout','8','--retries','1','--extractor-retries','1',...authArgs,...args],{stdio:['ignore','pipe','pipe']});
+    const p=spawn(process.env.YTDLP_PATH||'yt-dlp',['--ignore-config','--socket-timeout','8','--retries','1','--extractor-retries','1',...authArgs,...youtubeProviderArgs,...args],{stdio:['ignore','pipe','pipe']});
     let stdout='',stderr='',settled=false;
     const finish=(err,value)=>{
       if(settled)return;
@@ -230,7 +232,7 @@ async function startServer(){
   for(let attempt=0;attempt<30;attempt++){
     try{
       const response=await fetch('http://127.0.0.1:4416/ping',{signal:AbortSignal.timeout(1500)});
-      if(response.ok)break;
+      if(response.ok){potProviderReady=true;break;}
     }catch{}
     await new Promise(resolve=>setTimeout(resolve,1000));
   }
