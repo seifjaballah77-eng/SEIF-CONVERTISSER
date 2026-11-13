@@ -41,16 +41,28 @@ function checkedMediaUrl(raw){
 // as the Render secret YT_COOKIES_BASE64; never commit cookies to the repository.
 let ytCookiesPath=null;
 function getYtDlpCookieArgs(){
-  const encoded=process.env.YT_COOKIES_BASE64;
-  if(!encoded)return [];
   if(!ytCookiesPath){
-    const decoded=Buffer.from(encoded,'base64');
-    if(!decoded.length||decoded.length>2_000_000)throw new Error('إعداد Cookies غير صالح أو حجمه أكبر من الحد المسموح.');
-    const contents=decoded.toString('utf8');
-    if(!contents.includes('# Netscape HTTP Cookie File')&&!contents.includes('# HTTP Cookie File'))
-      throw new Error('ملف Cookies يجب أن يكون بصيغة Netscape.');
-    ytCookiesPath=path.join(os.tmpdir(),'seif-ytdlp-cookies-'+process.pid+'.txt');
-    fs.writeFileSync(ytCookiesPath,contents,{mode:0o600});
+    // Render Secret Files are the simplest and safest setup: upload the
+    // Netscape cookie file as /etc/secrets/youtube-cookies.txt.
+    const secretFile=process.env.YT_COOKIES_FILE||'/etc/secrets/youtube-cookies.txt';
+    if(fs.existsSync(secretFile)){
+      const stat=fs.statSync(secretFile);
+      if(!stat.isFile()||stat.size<1||stat.size>2_000_000)throw new Error('ملف YouTube Cookies غير صالح أو حجمه أكبر من الحد المسموح.');
+      const contents=fs.readFileSync(secretFile,'utf8');
+      if(!contents.includes('# Netscape HTTP Cookie File')&&!contents.includes('# HTTP Cookie File'))
+        throw new Error('ملف YouTube Cookies يجب أن يكون بصيغة Netscape.');
+      ytCookiesPath=secretFile;
+    }else{
+      const encoded=process.env.YT_COOKIES_BASE64;
+      if(!encoded)return [];
+      const decoded=Buffer.from(encoded,'base64');
+      if(!decoded.length||decoded.length>2_000_000)throw new Error('إعداد Cookies غير صالح أو حجمه أكبر من الحد المسموح.');
+      const contents=decoded.toString('utf8');
+      if(!contents.includes('# Netscape HTTP Cookie File')&&!contents.includes('# HTTP Cookie File'))
+        throw new Error('ملف Cookies يجب أن يكون بصيغة Netscape.');
+      ytCookiesPath=path.join(os.tmpdir(),'seif-ytdlp-cookies-'+process.pid+'.txt');
+      fs.writeFileSync(ytCookiesPath,contents,{mode:0o600});
+    }
   }
   return ['--cookies',ytCookiesPath];
 }
