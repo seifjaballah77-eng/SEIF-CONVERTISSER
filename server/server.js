@@ -59,7 +59,7 @@ function runYtDlp(args,{maxOutput=2_000_000,timeoutMs=60_000}={}){
     let authArgs;
     // Apply the user's YouTube session only to YouTube URLs. Other platforms
     // must remain independent from YouTube authentication and cookie failures.
-    const targetUrl=args.find(x=>typeof x==='string'&&/^https?:\\/\\//i.test(x));
+    const targetUrl=args.find(x=>typeof x==='string'&&/^https?:\/\//i.test(x));
     const isYouTube=targetUrl&&(()=>{try{const h=new URL(targetUrl).hostname.toLowerCase();return h==='youtube.com'||h.endsWith('.youtube.com')||h==='youtu.be'||h.endsWith('.youtu.be')||h==='youtube-nocookie.com'||h.endsWith('.youtube-nocookie.com')}catch{return false}})();
     try{authArgs=isYouTube?getYtDlpCookieArgs():[]}catch(err){reject(err);return}
     // Let current yt-dlp select the appropriate player clients automatically.
