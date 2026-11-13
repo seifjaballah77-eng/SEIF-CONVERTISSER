@@ -49,14 +49,38 @@ async function inspectMedia(url,statusEl=$('#mediaStatus')){
   }catch(err){currentMedia=null;setMediaStatus(statusEl,err.message,'error');return false}})();
   inspectionTask={url,promise};const result=await promise;inspectionTask=null;return result;
 }
+function downloadFilename(response){
+  const header=response.headers.get('Content-Disposition')||'';
+  const utf=header.match(/filename\*=UTF-8''([^;]+)/i);
+  if(utf){try{return decodeURIComponent(utf[1])}catch{}}
+  const plain=header.match(/filename="?([^";]+)"?/i);
+  return plain?.[1]||'seif-media-download';
+}
 async function downloadMedia(url,statusEl=$('#mediaStatus')){
   if(!validUrl(url)){setMediaStatus(statusEl,'أدخل رابطاً صحيحاً أولاً.','error');return}
   if(!currentMedia||currentMedia.url!==url){const ok=await inspectMedia(url,statusEl);if(!ok)return}
   const base=getBackend();if(!base)return;
   const quality=$('#mediaQuality')?.value||'best';
   addHistory(url,detect(url),currentMedia?.data?.title||'');
-  setMediaStatus(statusEl,'جارٍ إرسال طلب التنزيل إلى المصدر…','loading');
-  const a=document.createElement('a');a.href=base+'/api/media/download?url='+encodeURIComponent(url)+'&quality='+encodeURIComponent(quality);a.rel='noopener';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>setMediaStatus(statusEl,'تم إرسال طلب التنزيل إلى المتصفح. تابع التنزيلات لمعرفة النتيجة.','success'),700);
+  setMediaStatus(statusEl,'جارٍ تجهيز الملف من المصدر…','loading');
+  try{
+    const response=await fetch(base+'/api/media/download?url='+encodeURIComponent(url)+'&quality='+encodeURIComponent(quality));
+    if(!response.ok){
+      let message='تعذر تنزيل الوسائط من المصدر.';
+      try{const data=await response.json();message=data.error||message}catch{}
+      throw new Error(message);
+    }
+    const blob=await response.blob();
+    if(!blob.size)throw new Error('عاد المصدر بملف فارغ. جرّب رابطاً آخر.');
+    const name=downloadFilename(response);
+    const objectUrl=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=objectUrl;a.download=name;a.rel='noopener';
+    document.body.appendChild(a);a.click();a.remove();
+    downloads.unshift({name,url:objectUrl,size:blob.size,time:Date.now()});renderDownloads();
+    setMediaStatus(statusEl,'اكتمل تجهيز الملف وبدأ تنزيله: '+name,'success');
+  }catch(err){
+    setMediaStatus(statusEl,err.message||'تعذر تنزيل الملف. تحقق من الرابط وحاول مجدداً.','error');
+  }
 }
 $('#quickLink').addEventListener('input',e=>{
   const url=e.target.value.trim();currentMedia=null;$('#mediaResult').hidden=true;
@@ -87,7 +111,7 @@ async function processFile(file,action,params,target){const out=$('#'+target);if
 function renderDownloads(){$('#downloadsList').innerHTML=downloads.length?downloads.map(d=>`<div class="history-item"><div style="flex:1"><b>${esc(d.name)}</b><div class="history-meta">${(d.size/1048576).toFixed(2)} MB</div></div><a class="mini-btn" href="${d.url}" download="${esc(d.name)}">تنزيل</a></div>`).join(''):'<div class="empty-state"><div class="empty-icon">⇩</div><h3>لا توجد ملفات بعد</h3><p>ستظهر هنا نتائج المعالجة خلال هذه الجلسة.</p></div>'}
 $('#copyAllHistory').onclick=()=>copy(readHistory().map(x=>x.url).join('\n'));
 $('#clearHistory').onclick=()=>{if(confirm('هل تريد مسح سجل الروابط بالكامل؟')){saveHistory([]);renderHistory();toast('تم مسح السجل')}};
-function loadSettings(){let s={};try{s=JSON.parse(localStorage.getItem(SET)||'{}')}catch{}$('#backendUrl').value=s.backend||'';$('#themeSelect').value=s.theme||'dark';document.body.classList.toggle('light',s.theme==='light');$('#themeBtn').textContent=s.theme==='light'?'☾':'☼'}
+function loadSettings(){let s={};try{s=JSON.parse(localStorage.getItem(SET)||'{}')}catch{}$('#backendUrl').value=s.backend||DEFAULT_BACKEND;$('#themeSelect').value=s.theme||'dark';document.body.classList.toggle('light',s.theme==='light');$('#themeBtn').textContent=s.theme==='light'?'☾':'☼'}
 $('#saveSettings').onclick=()=>{const s={backend:$('#backendUrl').value.trim(),theme:$('#themeSelect').value,language:$('#languageSelect').value};localStorage.setItem(SET,JSON.stringify(s));document.body.classList.toggle('light',s.theme==='light');$('#settingsFeedback').textContent='تم حفظ الإعدادات على هذا الجهاز.';$('#settingsFeedback').className='feedback success'};
 $('#themeBtn').onclick=()=>{const light=!document.body.classList.contains('light');document.body.classList.toggle('light',light);$('#themeSelect').value=light?'light':'dark';$('#themeBtn').textContent=light?'☾':'☼';let s={};try{s=JSON.parse(localStorage.getItem(SET)||'{}')}catch{}s.theme=light?'light':'dark';localStorage.setItem(SET,JSON.stringify(s))};
 updateCount();loadSettings();renderHistory();const initial=location.hash.slice(1);if(pageNames[initial])go(initial);
