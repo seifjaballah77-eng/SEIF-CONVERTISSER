@@ -13,3 +13,5 @@ services:
         value: "500"
       - key: ALLOWED_ORIGINS
         sync: false
+      - key: YT_COOKIES_BASE64
+        sync: false
