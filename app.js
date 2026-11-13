@@ -70,6 +70,13 @@ async function downloadMedia(url,statusEl=$('#mediaStatus')){
       try{const data=await response.json();message=data.error||message}catch{}
       throw new Error(message);
     }
+    const contentLength=Number(response.headers.get('Content-Length')||0);
+    if(contentLength>150*1024*1024){
+      if(response.body)await response.body.cancel();
+      const direct=document.createElement('a');direct.href=base+'/api/media/download?url='+encodeURIComponent(url)+'&quality='+encodeURIComponent(quality);direct.rel='noopener';document.body.appendChild(direct);direct.click();direct.remove();
+      setMediaStatus(statusEl,'الملف كبير؛ بدأ تنزيله مباشرة لتجنب تحميله كاملاً في ذاكرة المتصفح.','success');
+      return;
+    }
     const blob=await response.blob();
     if(!blob.size)throw new Error('عاد المصدر بملف فارغ. جرّب رابطاً آخر.');
     const name=downloadFilename(response);
