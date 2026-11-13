@@ -57,8 +57,15 @@ function getYtDlpCookieArgs(){
 function runYtDlp(args,{maxOutput=2_000_000,timeoutMs=60_000}={}){
   return new Promise((resolve,reject)=>{
     let authArgs;
-    try{authArgs=getYtDlpCookieArgs()}catch(err){reject(err);return}
-    const p=spawn(process.env.YTDLP_PATH||'yt-dlp',['--ignore-config','--socket-timeout','8','--retries','1','--extractor-retries','1','--extractor-args','youtube:player-client=mweb',...authArgs,...args],{stdio:['ignore','pipe','pipe']});
+    // Apply the user's YouTube session only to YouTube URLs. Other platforms
+    // must remain independent from YouTube authentication and cookie failures.
+    const targetUrl=args.find(x=>typeof x==='string'&&/^https?:\\/\\//i.test(x));
+    const isYouTube=targetUrl&&(()=>{try{const h=new URL(targetUrl).hostname.toLowerCase();return h==='youtube.com'||h.endsWith('.youtube.com')||h==='youtu.be'||h.endsWith('.youtu.be')||h==='youtube-nocookie.com'||h.endsWith('.youtube-nocookie.com')}catch{return false}})();
+    try{authArgs=isYouTube?getYtDlpCookieArgs():[]}catch(err){reject(err);return}
+    // Let current yt-dlp select the appropriate player clients automatically.
+    // This is important for music.youtube.com, where forcing mweb can suppress
+    // yt-dlp's dedicated web_music client selection.
+    const p=spawn(process.env.YTDLP_PATH||'yt-dlp',['--ignore-config','--socket-timeout','8','--retries','1','--extractor-retries','1',...authArgs,...args],{stdio:['ignore','pipe','pipe']});
     let stdout='',stderr='',settled=false;
     const finish=(err,value)=>{
       if(settled)return;
