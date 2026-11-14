@@ -81,8 +81,10 @@ function getYtDlpCookieArgs(){
       contents=decoded.toString('utf8');
     }
     if(contents.includes('# Netscape HTTP Cookie File')||contents.includes('# HTTP Cookie File')){
-      ytCookiesPath=secretFile||path.join(os.tmpdir(),'seif-ytdlp-cookies-'+process.pid+'.txt');
-      if(!secretFile)fs.writeFileSync(ytCookiesPath,contents,{mode:0o600});
+      // Render Secret Files are read-only. yt-dlp may rewrite its cookie jar
+      // on shutdown, so always give it a private writable temporary copy.
+      ytCookiesPath=path.join(os.tmpdir(),'seif-ytdlp-cookies-'+process.pid+'.txt');
+      fs.writeFileSync(ytCookiesPath,contents,{mode:0o600});
     }else{
       const netscape=jsonCookiesToNetscape(contents);
       ytCookiesPath=path.join(os.tmpdir(),'seif-ytdlp-cookies-'+process.pid+'.txt');
