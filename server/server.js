@@ -25,7 +25,7 @@ const allowedOrigins=(process.env.ALLOWED_ORIGINS||'').split(',').map(x=>x.trim(
 app.use(helmet({crossOriginResourcePolicy:{policy:'cross-origin'}}));
 app.use(cors({origin:(origin,cb)=>{if(!origin||!allowedOrigins.length||allowedOrigins.includes(origin))return cb(null,true);cb(new Error('Origin not allowed'));}}));
 app.use(express.json({limit:'1mb'}));
-app.use('/api/',rateLimit({windowMs:60_000,limit:30,standardHeaders:true,legacyHeaders:false}));
+app.use('/api/',rateLimit({windowMs:60_000,limit:30,standardHeaders:true,legacyHeaders:false,skip:req=>req.method==='GET'&&/^\\/media\\/download-jobs\\/[^/]+$/.test(req.path)}));
 const upload=multer({storage:multer.memoryStorage(),limits:{fileSize:MAX_UPLOAD_MB*1024*1024,files:1}});
 
 app.get('/health',(req,res)=>res.json({ok:true,service:'SEIF CONVERTISSER API',ffmpeg:'configured-at-runtime',youtubePoTokenProvider:potProviderReady?'ready':'unavailable'}));
