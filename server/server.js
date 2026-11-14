@@ -116,31 +116,6 @@ function smartMatchScore(query,candidate){
   return Math.round(Math.min(99,coverage*78+precision*22));
 }
 
-async function searchArchiveAudio(term){
-  const clean=term.replace(/[+\-!(){}\[\]^"~*?:]/g,' ').replace(/\s+/g,' ').trim().slice(0,150);
-  if(!clean)return [];
-  const q='mediatype:audio AND (title:"'+clean.replace(/"/g,'')+'" OR creator:"'+clean.replace(/"/g,'')+'")';
-  const endpoint='https://archive.org/advancedsearch.php?q='+encodeURIComponent(q)+'&fl[]=identifier&fl[]=title&fl[]=creator&fl[]=description&rows=12&page=1&output=json';
-  const data=await smartJson(endpoint,18000);
-  const docs=data.response?.docs||[];
-  const rows=await Promise.all(docs.slice(0,10).map(async doc=>{
-    try{
-      const meta=await smartJson('https://archive.org/metadata/'+encodeURIComponent(doc.identifier),12000);
-      const files=(meta.files||[]).filter(f=>f.source==='original'&&/\.(mp3|ogg|oga|flac|wav|m4a)$/i.test(f.name||''));
-      const file=files.sort((a,b)=>(Number(b.size)||0)-(Number(a.size)||0))[0];
-      const allowed=smartLicenseAllowed(meta);
-      const title=firstText(doc.title)||doc.identifier;
-      const artist=firstText(doc.creator);
-      return {kind:'music',title,artist,album:'',thumbnail:'https://archive.org/services/img/'+encodeURIComponent(doc.identifier),
-        duration:null,platform:'Internet Archive',url:'https://archive.org/details/'+encodeURIComponent(doc.identifier),
-        matchScore:smartMatchScore(clean,[title,artist].join(' ')),downloadable:!!file&&allowed,
-        downloadUrl:file&&allowed?'/api/smart/archive-audio/'+encodeURIComponent(doc.identifier)+'/'+encodeURIComponent(file.name):null,
-        license:firstText(meta.metadata?.licenseurl||meta.metadata?.rights)||'ترخيص غير محدد',
-        note:file&&allowed?'ملف صوتي أصلي متاح للتنزيل وفق الترخيص الظاهر.':'المصدر لا يثبت حالياً إذناً واضحاً بالتنزيل.'};
-    }catch{return null}
-  }));
-  return rows.filter(Boolean);
-}
 let spotifyTokenCache={token:'',expiresAt:0};
 async function getSpotifyAccessToken(){
   const id=process.env.SPOTIFY_CLIENT_ID,secret=process.env.SPOTIFY_CLIENT_SECRET;
@@ -187,12 +162,12 @@ async function searchAppleMusic(term){
   return {results};
 }
 async function searchSmartMusic(term){
-  const [spotify,apple,archive]=await Promise.all([
+  // Music discovery is intentionally restricted to Spotify and Apple Music only.
+  const [spotify,apple]=await Promise.all([
     searchSpotifyMusic(term).catch(error=>({results:[],warning:error.message||'تعذر البحث في Spotify.'})),
-    searchAppleMusic(term).then(x=>({...x})).catch(error=>({results:[],warning:'تعذر الوصول إلى Apple Music الآن.'})),
-    searchArchiveAudio(term).then(results=>({results})).catch(()=>({results:[]}))
+    searchAppleMusic(term).catch(error=>({results:[],warning:'تعذر الوصول إلى Apple Music الآن.'}))
   ]);
-  const results=[...spotify.results,...apple.results,...archive.results];
+  const results=[...spotify.results,...apple.results];
   const seen=new Set();
   return {results:results.filter(x=>{const key=x.url||[x.title,x.artist,x.platform].join('|');if(seen.has(key))return false;seen.add(key);return true;})
     .sort((a,b)=>Number(b.matchScore)-Number(a.matchScore)).slice(0,24),
@@ -329,23 +304,6 @@ app.get('/api/smart/search',async(req,res)=>{
   if(type==='all'||type==='video')tasks.push(searchSmartVideo(term).then(results=>({type:'video',results})).catch(error=>({type:'video',results:[],warning:'تعذر الوصول إلى أرشيف الفيديو الآن.'})));
   const sections=await Promise.all(tasks);
   res.json({ok:true,query:term,sections,results:sections.flatMap(x=>x.results),warnings:sections.filter(x=>x.warning).map(x=>x.warning)});
-});
-app.get('/api/smart/archive-audio/:identifier/:fileName',async(req,res)=>{
-  const id=String(req.params.identifier||''),name=String(req.params.fileName||'');
-  if(!/^[A-Za-z0-9._-]{1,80}$/.test(id)||!/^[A-Za-z0-9._ -]{1,180}\\.(mp3|ogg|oga|flac|wav|m4a)$/i.test(name))return res.status(400).json({error:'اسم الملف الصوتي غير صالح.'});
-  try{
-    const meta=await smartJson('https://archive.org/metadata/'+encodeURIComponent(id),15000);
-    if(!smartLicenseAllowed(meta))return res.status(403).json({error:'لم يثبت أن ترخيص هذا الملف يسمح بالتنزيل.'});
-    const file=(meta.files||[]).find(f=>f.name===name&&f.source==='original');
-    if(!file)return res.status(404).json({error:'الملف الصوتي غير موجود.'});
-    const upstream=await fetch('https://archive.org/download/'+encodeURIComponent(id)+'/'+encodeURIComponent(name),{redirect:'follow',signal:AbortSignal.timeout(120000)});
-    if(!upstream.ok||!upstream.body)throw new Error('تعذر جلب الملف الصوتي.');
-    const {Readable}=require('node:stream');
-    res.setHeader('Content-Type',upstream.headers.get('content-type')||'application/octet-stream');
-    res.setHeader('Content-Disposition',"attachment; filename*=UTF-8''"+encodeURIComponent(name));
-    if(upstream.headers.get('content-length'))res.setHeader('Content-Length',upstream.headers.get('content-length'));
-    Readable.fromWeb(upstream.body).pipe(res);
-  }catch(err){if(!res.headersSent)res.status(422).json({error:err.message||'تعذر تنزيل الملف الصوتي.'});}
 });
 app.get('/api/smart/archive/:identifier/:fileName',async(req,res)=>{
   const id=String(req.params.identifier||''),name=String(req.params.fileName||'');
