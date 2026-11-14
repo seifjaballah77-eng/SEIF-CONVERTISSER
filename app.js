@@ -52,10 +52,12 @@ async function inspectMedia(url,statusEl=$('#mediaStatus')){
   if(['YouTube','TikTok'].includes(detect(url))){
     const host=new URL(url).hostname.toLowerCase();
     const isMusic=host==='music.youtube.com';
-    currentMedia={url,data:{platform:'YouTube',title:isMusic?'YouTube Music — عبر noTube':'YouTube — عبر noTube',mediaType:'video',partnerNoTube:true,formats:[{value:'partner-mp3',label:'MP3 — عبر noTube'},{value:'partner-mp4',label:'MP4 — عبر noTube (لصق الرابط)'}]}};
-    addHistory(url,'YouTube',currentMedia.data.title);
+    const platform=detect(url);
+    const title=platform==='TikTok'?'TikTok — عبر noTube':isMusic?'YouTube Music — عبر noTube':'YouTube — عبر noTube';
+    currentMedia={url,data:{platform,title,mediaType:'video',partnerNoTube:true,formats:[{value:'partner-mp3',label:'MP3 — عبر noTube'},{value:'partner-mp4',label:'MP4 — عبر noTube'}]}};
+    addHistory(url,platform,title);
     if(statusEl===$('#mediaStatus'))renderMediaResult(url,currentMedia.data);
-    setMediaStatus(statusEl,isMusic?'تم التعرف على YouTube Music. سنفتح noTube لتجربة الرابط يدوياً؛ التوافق غير مضمون.':'تم التعرف على YouTube. noTube هو مسار المعالجة لهذا المصدر فقط.','success');
+    setMediaStatus(statusEl,platform==='TikTok'?'تم التعرف على TikTok. ستتم المعالجة عبر noTube.':isMusic?'تم التعرف على YouTube Music. سنجرب الرابط عبر noTube؛ التوافق يعتمد على قبول الموقع له.':'تم التعرف على YouTube. noTube هو مسار المعالجة لهذا المصدر.','success');
     return true;
   }
   const base=getBackend();
