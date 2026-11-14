@@ -26,9 +26,9 @@ function validUrl(s){try{const u=new URL(s);return ['http:','https:'].includes(u
 let quickInspectTimer=null,smartResolved=null;
 function setMediaStatus(el,message,kind=''){if(!el)return;el.textContent=message;el.className='media-status '+kind+(kind==='loading'?' is-loading':'')}
 function smartResultCard(r){
-  const image=r.thumbnail?'<img class="smart-thumb" src="'+esc(r.thumbnail)+'" alt="" loading="lazy" onerror="this.style.display=\\'none\\'">':'<div class="smart-thumb smart-thumb-empty">'+(r.kind==='music'?'♫':'▶')+'</div>';
+  const image=r.thumbnail?'<img class="smart-thumb" src="'+esc(r.thumbnail)+'" alt="" loading="lazy" onerror="this.style.display=\'none\'">':'<div class="smart-thumb smart-thumb-empty">'+(r.kind==='music'?'♫':'▶')+'</div>';
   const duration=r.duration?'<span class="chip">'+Math.floor(r.duration/60)+':'+String(Math.floor(r.duration%60)).padStart(2,'0')+'</span>':'';
-  const downloadHref=r.downloadUrl?( /^https?:\\/\\//i.test(r.downloadUrl)?r.downloadUrl:getBackend()+r.downloadUrl):'';
+  const downloadHref=r.downloadUrl?( /^https?:\/\//i.test(r.downloadUrl)?r.downloadUrl:getBackend()+r.downloadUrl):'';
   const action=r.kind==='music'
     ?(r.downloadable&&downloadHref?'<a class="primary-btn smart-action" href="'+esc(downloadHref)+'" download>تنزيل إلى الجهاز ↓</a>':'<span class="smart-action-disabled">'+esc(r.note||'التنزيل الكامل غير متاح لهذا المصدر.')+'</span>')
     :'<a class="secondary-btn smart-action" href="'+esc(r.url||'#')+'" target="_blank" rel="noopener">فتح المصدر الرسمي ↗</a>';
