@@ -85,7 +85,7 @@ async function downloadMedia(url,statusEl=$('#mediaStatus')){
     const jobId=created.jobId;if(!jobId)throw new Error('لم يُرجع الخادم رقم مهمة التنزيل.');
     let job=null;
     while(true){
-      await new Promise(resolve=>setTimeout(resolve,800));
+      await new Promise(resolve=>setTimeout(resolve,2500));
       const check=await fetch(base+'/api/media/download-jobs/'+encodeURIComponent(jobId));
       const state=await check.json();if(!check.ok)throw new Error(state.error||'تعذر متابعة التنزيل');
       job=state;
