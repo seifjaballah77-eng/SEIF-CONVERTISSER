@@ -295,7 +295,7 @@ app.post('/api/smart/identify-audio',audioIdentifyUpload.single('file'),async(re
 });
 
 async function findClosestYouTubeSong(term){
-  const query=String(term||'').trim().replace(/[\\r\\n]+/g,' ').slice(0,160);
+  const query=String(term||'').trim().replace(/[\r\n]+/g,' ').slice(0,160);
   if(query.length<2)throw new Error('اسم الأغنية غير كافٍ للبحث.');
   const raw=await runYtDlp(['--dump-single-json','--skip-download','--no-warnings','--no-progress','ytsearch5:'+query],{timeoutMs:45000,maxOutput:700000});
   const payload=JSON.parse(raw);
@@ -303,7 +303,7 @@ async function findClosestYouTubeSong(term){
   const rows=entries.map(item=>{
     const id=String(item.id||'');
     const url=item.webpage_url||item.original_url||(id?'https://www.youtube.com/watch?v='+encodeURIComponent(id):'');
-    if(!/^https:\\/\\/(www\\.)?(youtube\\.com|youtu\\.be)\\//i.test(url))return null;
+    if(!/^https:\/\/(www\.)?(youtube\.com|youtu\.be)\//i.test(url))return null;
     const title=String(item.title||'');
     const artist=String(item.artist||item.uploader||item.channel||'');
     return {title,artist,url,thumbnail:item.thumbnail||item.thumbnails?.[0]?.url||null,duration:Number(item.duration)||null,matchScore:smartMatchScore(query,[title,artist].join(' '))};
