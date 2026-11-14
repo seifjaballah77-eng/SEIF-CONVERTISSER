@@ -197,6 +197,62 @@ async function searchSmartVideo(term){
   return [...archive,...peer].sort((a,b)=>b.matchScore-a.matchScore).slice(0,16);
 }
 
+
+const audioIdentifyUpload=multer({storage:multer.memoryStorage(),limits:{fileSize:25*1024*1024,files:1}});
+app.post('/api/smart/identify-audio',audioIdentifyUpload.single('file'),async(req,res)=>{
+  if(!process.env.AUDD_API_TOKEN)return res.status(503).json({error:'ميزة التعرف تحتاج مفتاح AudD. أضف AUDD_API_TOKEN في Render Environment ثم أعد نشر الخادم.',code:'AUDD_NOT_CONFIGURED'});
+  if(!req.file)return res.status(400).json({error:'اختر ملفاً صوتياً أو سجّل مقطعاً أولاً.'});
+  const mime=String(req.file.mimetype||'').toLowerCase();
+  if(!mime.startsWith('audio/')&&!mime.startsWith('video/'))return res.status(415).json({error:'الملف يجب أن يكون صوتاً أو فيديو يحتوي على صوت.'});
+  const offset=num(req.body.offset,0,0,86400);
+  const work=path.join(os.tmpdir(),'seif-audio-id-'+crypto.randomUUID());
+  await fs.promises.mkdir(work,{recursive:true});
+  const ext=path.extname(req.file.originalname||'').replace(/[^.a-z0-9]/gi,'').slice(0,10)||'.bin';
+  const input=path.join(work,'input'+ext),output=path.join(work,'recognition.mp3');
+  try{
+    await fs.promises.writeFile(input,req.file.buffer);
+    await runFFmpeg(['-ss',String(offset),'-i',input,'-t','12','-vn','-ac','1','-ar','44100','-b:a','128k','-f','mp3',output]);
+    const audio=await fs.promises.readFile(output);
+    if(!audio.length)throw new Error('لم أستطع استخراج صوت واضح من الملف.');
+    const form=new FormData();
+    form.append('api_token',process.env.AUDD_API_TOKEN);
+    form.append('return','apple_music,spotify,deezer');
+    form.append('market','us');
+    form.append('file',new Blob([audio],{type:'audio/mpeg'}),'seif-audio-clip.mp3');
+    const upstream=await fetch('https://api.audd.io/',{method:'POST',body:form,signal:AbortSignal.timeout(30000)});
+    if(!upstream.ok)throw new Error('خدمة التعرف الصوتي غير متاحة مؤقتاً ('+upstream.status+').');
+    const payload=await upstream.json();
+    if(payload.status!=='success'){
+      const code=Number(payload.error?.error_code||payload.error?.code||0);
+      if(code===900||code===901)return res.status(502).json({error:'مفتاح AudD غير صالح أو غير مفعّل. راجع AUDD_API_TOKEN في Render.'});
+      if(code===400)return res.status(413).json({error:'المقطع الصوتي أكبر من الحد المسموح بعد المعالجة.'});
+      if(code===500||code===300)return res.status(422).json({error:'تعذر تحليل هذا التسجيل. جرّب مقطعاً أوضح يحتوي على موسيقى.'});
+      return res.status(502).json({error:'خدمة التعرف لم تقبل المقطع. تحقق من إعداد AudD وحاول مجدداً.'});
+    }
+    const r=payload.result;
+    if(!r)return res.json({ok:true,match:null,message:'لم نعثر على تطابق. جرّب مقطعاً أوضح أو اختر جزءاً آخر من الأغنية.'});
+    const link=v=>typeof v==='string'&&/^https:\/\/[^ ]+/i.test(v)?v:null;
+    res.json({ok:true,match:{
+      title:String(r.title||''),
+      artist:String(r.artist||''),
+      album:String(r.album||''),
+      releaseDate:String(r.release_date||''),
+      label:String(r.label||''),
+      timecode:String(r.timecode||''),
+      songUrl:link(r.song_link),
+      spotifyUrl:link(r.spotify?.external_urls?.spotify||r.spotify?.url),
+      appleMusicUrl:link(r.apple_music?.url),
+      deezerUrl:link(r.deezer?.link||r.deezer?.url),
+      artwork:link(r.spotify?.album?.images?.[0]?.url||r.apple_music?.artwork?.url||r.apple_music?.artwork_url)
+    }});
+  }catch(err){
+    console.error('[audio-identify]',err.message);
+    res.status(422).json({error:err.message||'تعذر التعرف على الأغنية.'});
+  }finally{
+    await fs.promises.rm(work,{recursive:true,force:true}).catch(()=>{});
+  }
+});
+
 app.get('/api/smart/search',async(req,res)=>{
   const term=String(req.query.q||'').trim().slice(0,180);
   const type=String(req.query.type||'all');
