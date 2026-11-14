@@ -26,11 +26,15 @@ function validUrl(s){try{const u=new URL(s);return ['http:','https:'].includes(u
 let quickInspectTimer=null,smartResolved=null;
 function setMediaStatus(el,message,kind=''){if(!el)return;el.textContent=message;el.className='media-status '+kind+(kind==='loading'?' is-loading':'')}
 function smartResultCard(r){
-  const image=r.thumbnail?'<img class="smart-thumb" src="'+esc(r.thumbnail)+'" alt="" loading="lazy" onerror="this.style.display=\'none\'">':'<div class="smart-thumb smart-thumb-empty">'+(r.kind==='music'?'♫':'▶')+'</div>';
+  const image=r.thumbnail?'<img class="smart-thumb" src="'+esc(r.thumbnail)+'" alt="" loading="lazy" onerror="this.style.display=\\'none\\'">':'<div class="smart-thumb smart-thumb-empty">'+(r.kind==='music'?'♫':'▶')+'</div>';
   const duration=r.duration?'<span class="chip">'+Math.floor(r.duration/60)+':'+String(Math.floor(r.duration%60)).padStart(2,'0')+'</span>':'';
-  const downloadHref=r.downloadUrl?( /^https?:\/\//i.test(r.downloadUrl)?r.downloadUrl:getBackend()+r.downloadUrl):'';
-  const action=r.downloadable&&downloadHref?'<a class="primary-btn smart-action" href="'+esc(downloadHref)+'" target="_blank" rel="noopener">تنزيل مباشر ↓</a>':r.kind==='music'?'<span class="smart-action-disabled">'+esc(r.note||'التنزيل المباشر غير متاح لهذا المقطع.')+'</span><a class="secondary-btn smart-action" href="'+esc(r.url||'#')+'" target="_blank" rel="noopener">فتح للاستماع ↗</a>':'<a class="secondary-btn smart-action" href="'+esc(r.url||'#')+'" target="_blank" rel="noopener">فتح المصدر الرسمي ↗</a>';
-  const preview=r.previewAudioUrl?'<div class="smart-preview smart-audio-preview"><audio controls preload="none" src="'+esc(r.previewAudioUrl)+'">المتصفح لا يدعم تشغيل الصوت.</audio></div>':(r.previewUrl||r.embedUrl)?'<div class="smart-preview '+(r.kind==='music'?'smart-music-preview':'')+'"><iframe src="'+esc(r.previewUrl||r.embedUrl)+'" loading="lazy" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" title="معاينة '+esc(r.title)+'"></iframe></div>':'';
+  const downloadHref=r.downloadUrl?( /^https?:\\/\\//i.test(r.downloadUrl)?r.downloadUrl:getBackend()+r.downloadUrl):'';
+  const action=r.kind==='music'
+    ?(r.downloadable&&downloadHref?'<a class="primary-btn smart-action" href="'+esc(downloadHref)+'" download>تنزيل إلى الجهاز ↓</a>':'<span class="smart-action-disabled">'+esc(r.note||'التنزيل الكامل غير متاح لهذا المصدر.')+'</span>')
+    :'<a class="secondary-btn smart-action" href="'+esc(r.url||'#')+'" target="_blank" rel="noopener">فتح المصدر الرسمي ↗</a>';
+  const preview=r.previewAudioUrl
+    ?'<button type="button" class="secondary-btn smart-action play-in-app" data-play-src="'+esc(r.previewAudioUrl)+'" data-play-title="'+esc(r.title||'موسيقى')+'" data-play-artist="'+esc(r.artist||'')+'" data-play-art="'+esc(r.thumbnail||'')+'">▶ استمع داخل التطبيق</button>'
+    :(r.previewUrl||r.embedUrl)?'<div class="smart-preview '+(r.kind==='music'?'smart-music-preview':'')+'"><iframe src="'+esc(r.previewUrl||r.embedUrl)+'" loading="lazy" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" title="معاينة '+esc(r.title)+'"></iframe></div>':'';
   return '<article class="smart-card">'+image+'<div class="smart-card-body"><div class="media-tags"><span class="chip">'+esc(r.platform||'مصدر')+'</span><span class="chip">'+(r.kind==='music'?'موسيقى':'فيديو')+'</span>'+(Number.isFinite(Number(r.matchScore))?'<span class="chip">تطابق '+Number(r.matchScore)+'%</span>':'')+duration+'</div><b>'+esc(r.title||'بدون عنوان')+'</b><small>'+esc(r.artist||r.album||'')+'</small><p>'+esc(r.note||r.description||'')+'</p>'+preview+'<div class="smart-card-actions">'+action+'</div></div></article>';
 }
 function renderSmartResults(rows,target='#searchResults'){
@@ -46,8 +50,9 @@ async function smartSearch(term,type='all',target='#searchResults',state='#searc
   const stateEl=$(state);
   if(stateEl){
     const n=(data.results||[]).length;
+    const warnings=(data.warnings||[]).filter(Boolean);
     stateEl.className='empty-state';
-    stateEl.innerHTML=n?'<div class="empty-icon">✦</div><h3>عثرنا على '+n+' نتيجة</h3><p>'+(data.warnings||[]).map(esc).join(' · ')+'</p>':'<div class="empty-icon">⌕</div><h3>لم نجد نتائج مطابقة</h3><p>جرّب كتابة اسم الأغنية مع الفنان، أو عنوان الفيديو بكلمات أبسط.</p>';
+    stateEl.innerHTML=n?'<div class="empty-icon">✦</div><h3>عثرنا على '+n+' نتيجة</h3><p>'+(warnings.map(esc).join(' · ')||'اختر أغنية للاستماع إليها هنا، ثم نزّل المقاطع التي يسمح أصحابها بتنزيلها.')+'</p>':'<div class="empty-icon">⌕</div><h3>لم نجد نتائج مطابقة</h3><p>'+(warnings.map(esc).join(' · ')||'جرّب كتابة اسم الأغنية مع الفنان، أو كلمات أبسط.')+'</p>';
   }
   return data;
 }
@@ -86,7 +91,7 @@ $('#quickLinkForm').onsubmit=async e=>{e.preventDefault();try{await runSmartLink
 $('#fetchForm').onsubmit=async e=>{e.preventDefault();const url=$('#fetchUrl').value.trim();if(!validUrl(url))return;try{const data=await resolveSmartLink(url);$('#fetchFeedback').textContent='تم التعرف: '+(data.mediaType==='music'?'موسيقى':'فيديو')+' — '+data.title+'. انتقل إلى البحث والاكتشاف للعثور على بدائل.';$('#fetchFeedback').className='feedback success';$('#searchQuery').value=data.query||data.title;$('#searchType').value=data.mediaType;go('discover');await smartSearch(data.query||data.title,data.mediaType)}catch(err){$('#fetchFeedback').textContent=err.message;$('#fetchFeedback').className='feedback error'}};
 $('#searchForm').onsubmit=async e=>{
   e.preventDefault();const q=$('#searchQuery').value.trim();if(q.length<2)return;
-  $('#searchState').className='empty-state operation-state';$('#searchState').innerHTML=loaderMarkup('search','جارٍ البحث في كتالوجات الموسيقى وأرشيف الفيديو…');$('#searchResults').innerHTML='';
+  $('#searchState').className='empty-state operation-state';$('#searchState').innerHTML=loaderMarkup('search',$('#searchType').value==='music'?'جارٍ البحث عن الأغاني والفنانين…':'جارٍ البحث في كتالوجات الموسيقى وأرشيف الفيديو…');$('#searchResults').innerHTML='';
   try{await smartSearch(q,$('#searchType').value||'all')}catch(err){$('#searchState').className='empty-state';$('#searchState').innerHTML='<div class="empty-icon">!</div><h3>تعذر إكمال البحث</h3><p>'+esc(err.message)+'</p>'}
 };
 $('#addBatch').onclick=()=>{const urls=$('#batchInput').value.split(/\n+/).map(x=>x.trim()).filter(Boolean);let added=0;for(const u of urls){if(validUrl(u)){addHistory(u,detect(u));if(!batch.includes(u)){batch.push(u);added++}}}renderBatch();toast(added+' رابط أضيف إلى الطابور')};
@@ -204,4 +209,20 @@ $('#clearHistory').onclick=()=>{if(confirm('هل تريد مسح سجل الرو
 function loadSettings(){let s={};try{s=JSON.parse(localStorage.getItem(SET)||'{}')}catch{}$('#backendUrl').value=s.backend||DEFAULT_BACKEND;$('#themeSelect').value=s.theme||'dark';document.body.classList.toggle('light',s.theme==='light');$('#themeBtn').textContent=s.theme==='light'?'☾':'☼'}
 $('#saveSettings').onclick=()=>{const s={backend:$('#backendUrl').value.trim(),theme:$('#themeSelect').value,language:$('#languageSelect').value};localStorage.setItem(SET,JSON.stringify(s));document.body.classList.toggle('light',s.theme==='light');$('#settingsFeedback').textContent='تم حفظ الإعدادات على هذا الجهاز.';$('#settingsFeedback').className='feedback success'};
 $('#themeBtn').onclick=()=>{const light=!document.body.classList.contains('light');document.body.classList.toggle('light',light);$('#themeSelect').value=light?'light':'dark';$('#themeBtn').textContent=light?'☾':'☼';let s={};try{s=JSON.parse(localStorage.getItem(SET)||'{}')}catch{}s.theme=light?'light':'dark';localStorage.setItem(SET,JSON.stringify(s))};
+document.addEventListener('click',e=>{
+  const play=e.target.closest('[data-play-src]');
+  if(!play)return;
+  const dock=$('#musicPlayerDock'),audio=$('#musicDockAudio');
+  if(!dock||!audio)return;
+  const src=play.dataset.playSrc;
+  if(!/^https:\\/\\//i.test(src))return;
+  $('#musicDockTitle').textContent=play.dataset.playTitle||'موسيقى';
+  $('#musicDockArtist').textContent=play.dataset.playArtist||'';
+  const art=$('#musicDockArt');
+  if(play.dataset.playArt){art.src=play.dataset.playArt;art.hidden=false}else{art.removeAttribute('src');art.hidden=true}
+  dock.hidden=false;
+  if(audio.src!==src){audio.src=src;audio.load()}
+  audio.play().catch(()=>toast('اضغط تشغيل من المشغل للسماح بالصوت.'));
+});
+$('#musicDockClose').onclick=()=>{const audio=$('#musicDockAudio');audio.pause();$('#musicPlayerDock').hidden=true};
 updateCount();loadSettings();renderHistory();const initial=location.hash.slice(1);if(pageNames[initial])go(initial);
