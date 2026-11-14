@@ -172,7 +172,7 @@ app.post('/api/media/inspect',async(req,res)=>{
     res.json({ok:true,...mediaSummary(info)});
   }catch(err){res.status(422).json({error:err.message||'تعذر تحليل الرابط.'});}
 });
-const qualitySelectors={best:'bestvideo*+bestaudio/best','2160':'bestvideo*[height<=2160]+bestaudio/best[height<=2160]','1440':'bestvideo*[height<=1440]+bestaudio/best[height<=1440]','1080':'bestvideo*[height<=1080]+bestaudio/best[height<=1080]','720':'bestvideo*[height<=720]+bestaudio/best[height<=720]','480':'bestvideo*[height<=480]+bestaudio/best[height<=480]','360':'bestvideo*[height<=360]+bestaudio/best[height<=360]','audio':'bestaudio/best'};
+const qualitySelectors={best:'bestvideo*+bestaudio/best','2160':'bestvideo*[height<=2160]+bestaudio/best[height<=2160]','1440':'bestvideo*[height<=1440]+bestaudio/best[height<=1440]','1080':'bestvideo*[height<=1080]+bestaudio/best[height<=1080]','720':'bestvideo*[height<=720]+bestaudio/best[height<=720]','480':'bestvideo*[height<=480]+bestaudio/best[height<=480]','360':'bestvideo*[height<=360]+bestaudio/best[height<=360]','audio':'bestaudio/best','mp4':'bestvideo*+bestaudio/best','mp4_2160':'bestvideo*[height<=2160]+bestaudio/best[height<=2160]','mp4_1440':'bestvideo*[height<=1440]+bestaudio/best[height<=1440]','mp4_1080':'bestvideo*[height<=1080]+bestaudio/best[height<=1080]','mp4_720':'bestvideo*[height<=720]+bestaudio/best[height<=720]','mp4_480':'bestvideo*[height<=480]+bestaudio/best[height<=480]','mp4_360':'bestvideo*[height<=360]+bestaudio/best[height<=360]'};
 const mediaJobs=new Map();
 // Process one media download at a time to protect the service from overload.
 // Jobs remain on the server if the browser tab is closed.
@@ -210,7 +210,7 @@ app.post('/api/media/download-jobs',async(req,res)=>{
       await fs.promises.mkdir(work,{recursive:true});
       const template=path.join(work,'%(title).90B-%(id)s.%(ext)s');
       const downloadArgs=['--no-warnings','--no-colors','--newline','--progress','--progress-template','download:SEIF_PROGRESS:%(progress._percent_str)s|%(progress._speed_str)s|%(progress._eta_str)s','--no-playlist','--no-part','--format',format,'--output',template,'--print','after_move:filepath'];
-      if(quality==='audio')downloadArgs.push('--extract-audio','--audio-format','mp3','--audio-quality','0');
+      if(quality==='audio')downloadArgs.push('--extract-audio','--audio-format','mp3','--audio-quality','0');else if(quality==='mp4'||quality.startsWith('mp4_'))downloadArgs.push('--recode-video','mp4');
       job.stage='يتصل بالمصدر ويجهّز الفيديو';
       await runYtDlp([...downloadArgs,url],{maxOutput:100000,timeoutMs:2*60*60_000,onProgress:p=>{job.stage='جارٍ تنزيل الوسائط من المصدر';job.percent=p.percent;job.speed=p.speed;job.eta=p.eta;job.updatedAt=Date.now();}});
       const names=await fs.promises.readdir(work);
@@ -253,7 +253,7 @@ app.get('/api/media/download',async(req,res)=>{
     await fs.promises.mkdir(work,{recursive:true});
     const template=path.join(work,'%(title).90B-%(id)s.%(ext)s');
     const downloadArgs=['--no-warnings','--no-progress','--no-playlist','--no-part','--format',format,'--output',template,'--print','after_move:filepath'];
-    if(quality==='audio')downloadArgs.push('--extract-audio','--audio-format','mp3','--audio-quality','0');
+    if(quality==='audio')downloadArgs.push('--extract-audio','--audio-format','mp3','--audio-quality','0');else if(quality==='mp4'||quality.startsWith('mp4_'))downloadArgs.push('--recode-video','mp4');
     await runYtDlp([...downloadArgs,url],{maxOutput:100000,timeoutMs:10*60_000});
     const names=await fs.promises.readdir(work);
     if(!names.length)throw new Error('لم يُنشئ المصدر ملفاً قابلاً للتنزيل.');
