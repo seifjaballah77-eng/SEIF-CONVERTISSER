@@ -1,8 +1,8 @@
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const platforms=['Spotify','Apple Music','YouTube Music','YouTube','TikTok','PeerTube','Internet Archive'];
-const tools=[['discover','⌕','البحث والاكتشاف','اكتشف المحتوى بالكلمات المفتاحية'],['fetch','↧','تحليل الرابط','فهم الرابط والبحث عن بدائل'],['batch','▤','المعالجة الجماعية','إدارة عدة روابط'],['images','▧','صور المنشورات','حفظ الصور المسموح بها'],['trim','✂','قص الفيديو','تحديد البداية والنهاية'],['audio','♫','استخراج الصوت','MP3 و WAV و M4A'],['convert','⇄','تحويل الصيغ','فيديو وصوت'],['compress','◫','ضغط الملفات','موازنة الجودة والحجم'],['gif','▣','صانع GIF','تحويل مقطع قصير']];
-const pageNames={home:'الرئيسية',discover:'البحث والاكتشاف',fetch:'جلب الوسائط',batch:'المعالجة الجماعية',images:'صور المنشورات',trim:'قص الفيديو',audio:'استخراج الصوت',convert:'تحويل الصيغ',compress:'ضغط الملفات',gif:'صانع GIF',downloads:'مركز التنزيلات',history:'سجل الروابط',settings:'الإعدادات'};
-const KEY='seif-convertisser-history-v1',SET='seif-convertisser-settings-v1';let batch=[],downloads=[],trimObjectUrl=null;
+const tools=[['discover','⌕','البحث والاكتشاف','اكتشف المحتوى بالكلمات المفتاحية'],['fetch','↧','تحليل الرابط','فهم الرابط والبحث عن بدائل'],['batch','▤','المعالجة الجماعية','إدارة عدة روابط'],['images','▧','صور المنشورات','حفظ الصور المسموح بها'],['trim','✂','قص الفيديو','تحديد البداية والنهاية'],['audio','♫','استخراج الصوت','MP3 و WAV و M4A'],['identify','⌁','التعرّف على الأغاني','اكتشف اسم الأغنية من مقطع صوتي'],['convert','⇄','تحويل الصيغ','فيديو وصوت'],['compress','◫','ضغط الملفات','موازنة الجودة والحجم'],['gif','▣','صانع GIF','تحويل مقطع قصير']];
+const pageNames={home:'الرئيسية',discover:'البحث والاكتشاف',fetch:'جلب الوسائط',batch:'المعالجة الجماعية',images:'صور المنشورات',trim:'قص الفيديو',audio:'استخراج الصوت',identify:'التعرّف على الأغاني',convert:'تحويل الصيغ',compress:'ضغط الملفات',gif:'صانع GIF',downloads:'مركز التنزيلات',history:'سجل الروابط',settings:'الإعدادات'};
+const KEY='seif-convertisser-history-v1',SET='seif-convertisser-settings-v1';let batch=[],downloads=[],trimObjectUrl=null,identifyFile=null,identifyObjectUrl=null,identifyRecorder=null,identifyStream=null,identifyTimer=null,identifyChunks=[];
 function toast(msg){const el=$('#toast');el.textContent=msg;el.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove('show'),2600)}
 function go(page){if(!pageNames[page])return;$$('.page').forEach(x=>x.classList.toggle('active',x.id==='page-'+page));$$('.nav-link').forEach(x=>x.classList.toggle('active',x.dataset.page===page));$('#pageCrumb').textContent=pageNames[page];$('#sidebar').classList.remove('open');history.replaceState(null,'','#'+page);if(page==='history')renderHistory();if(page==='downloads')renderDownloads()}
 $$('.nav-link').forEach(b=>b.addEventListener('click',()=>go(b.dataset.page)));
@@ -99,6 +99,88 @@ $('#trimFile').onchange=e=>{const f=e.target.files[0];if(!f)return;if(trimObject
 $('#trimStart').oninput=updateTimeline;$('#trimEnd').oninput=updateTimeline;function updateTimeline(){const v=$('#trimPreview');if(!v.duration)return;const s=Math.max(0,+$('#trimStart').value||0),e=Math.min(v.duration,+$('#trimEnd').value||v.duration);$('#timelineFill').style.width=Math.max(0,Math.min(100,(e-s)/v.duration*100))+'%'}
 $('#trimProcess').onclick=()=>processFile($('#trimFile').files[0],'trim',{start:+$('#trimStart').value,end:+$('#trimEnd').value},'trimFeedback');
 $('#audioProcess').onclick=()=>processFile($('#audioFile').files[0],'audio',{format:$('#audioFormat').value,bitrate:$('#audioBitrate').value},'audioFeedback');
+
+function identifyStatus(message,kind=''){const el=$('#identifyStatus');el.textContent=message;el.className='feedback '+kind}
+function setIdentifyFile(file){
+  identifyFile=file||null;
+  if(identifyObjectUrl)URL.revokeObjectURL(identifyObjectUrl);
+  identifyObjectUrl=null;
+  const preview=$('#identifyPreview');
+  if(identifyFile){identifyObjectUrl=URL.createObjectURL(identifyFile);preview.src=identifyObjectUrl;preview.hidden=false;$('#identifySubmit').disabled=false;identifyStatus('تم اختيار: '+identifyFile.name+' · '+(identifyFile.size/1048576).toFixed(2)+' MB. اضغط «تعرّف على الأغنية».','success')}
+  else{preview.removeAttribute('src');preview.hidden=true;$('#identifySubmit').disabled=true}
+  $('#identifyResult').hidden=true;
+}
+$('#identifyFile').addEventListener('change',e=>setIdentifyFile(e.target.files[0]));
+function stopIdentifyRecording(){
+  if(identifyTimer){clearTimeout(identifyTimer);identifyTimer=null}
+  if(identifyRecorder&&identifyRecorder.state==='recording')identifyRecorder.stop();
+  $('#identifyStop').disabled=true;
+}
+$('#identifyRecord').onclick=async()=>{
+  if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){identifyStatus('متصفحك لا يدعم التسجيل الصوتي. استخدم رفع ملف صوتي أو افتح التطبيق عبر HTTPS بمتصفح أحدث.','error');return}
+  try{
+    $('#identifyRecord').disabled=true;identifyStatus('بانتظار إذن الميكروفون…','loading');
+    identifyStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+    identifyChunks=[];
+    const types=['audio/webm;codecs=opus','audio/webm','audio/mp4'];
+    const mime=types.find(t=>MediaRecorder.isTypeSupported(t));
+    identifyRecorder=new MediaRecorder(identifyStream,mime?{mimeType:mime}:{});
+    identifyRecorder.ondataavailable=e=>{if(e.data&&e.data.size)identifyChunks.push(e.data)};
+    identifyRecorder.onerror=()=>{identifyStream?.getTracks().forEach(t=>t.stop());$('#identifyRecord').disabled=false;$('#identifyStop').disabled=true;identifyStatus('حدث خطأ أثناء التسجيل. جرّب رفع ملف صوتي.','error')};
+    identifyRecorder.onstop=()=>{
+      const type=identifyRecorder.mimeType||'audio/webm';
+      const blob=new Blob(identifyChunks,{type});
+      identifyStream?.getTracks().forEach(t=>t.stop());identifyStream=null;
+      $('#identifyRecord').disabled=false;$('#identifyStop').disabled=true;
+      if(!blob.size){identifyStatus('لم يتم تسجيل صوت. حاول مرة أخرى.','error');return}
+      const ext=type.includes('mp4')?'m4a':'webm';
+      setIdentifyFile(new File([blob],'seif-recording.'+ext,{type}));
+      $('#identifyRecordTime').textContent='تم تسجيل 12 ثانية تقريباً';
+    };
+    identifyRecorder.start(250);
+    $('#identifyStop').disabled=false;
+    $('#identifyRecordTime').textContent='جارٍ التسجيل… سيتوقف تلقائياً بعد 12 ثانية';
+    identifyStatus('استمع إلى الأغنية قرب الميكروفون. لا تتحدث أثناء التسجيل.','loading');
+    identifyTimer=setTimeout(stopIdentifyRecording,12000);
+  }catch(err){
+    identifyStream?.getTracks().forEach(t=>t.stop());identifyStream=null;
+    $('#identifyRecord').disabled=false;$('#identifyStop').disabled=true;
+    identifyStatus(err.name==='NotAllowedError'?'لم تسمح للمتصفح باستخدام الميكروفون. فعّل الإذن أو ارفع ملفاً صوتياً.':'تعذر تشغيل الميكروفون: '+err.message,'error');
+  }
+};
+$('#identifyStop').onclick=stopIdentifyRecording;
+function identifyLink(url,label){
+  if(typeof url!=='string'||!/^https:\/\/[^ ]+/i.test(url))return '';
+  return '<a class="secondary-btn identify-link" href="'+esc(url)+'" target="_blank" rel="noopener noreferrer">'+label+' ↗</a>';
+}
+function renderIdentifyMatch(match){
+  const result=$('#identifyResult');result.hidden=false;
+  if(!match){result.innerHTML='<div class="identify-no-match"><div class="empty-icon">♫</div><b>لم نتعرف على الأغنية</b><p>جرّب مقطعاً أوضح مدته 8–12 ثانية، ويفضل أن تكون الموسيقى مسموعة دون كلام فوقها.</p></div>';return}
+  const art=match.artwork?'<img class="identify-art" src="'+esc(match.artwork)+'" alt="غلاف الألبوم" loading="lazy">':'<div class="identify-art identify-art-empty">♫</div>';
+  const links=identifyLink(match.spotifyUrl,'Spotify')+identifyLink(match.appleMusicUrl,'Apple Music')+identifyLink(match.deezerUrl,'Deezer')+identifyLink(match.songUrl,'صفحة الأغنية');
+  result.innerHTML='<div class="identify-match">'+art+'<div class="identify-match-info"><span class="eyebrow">تم العثور على تطابق</span><h2>'+esc(match.title||'أغنية معروفة')+'</h2><b>'+esc(match.artist||'فنان غير معروف')+'</b><small>'+[match.album,match.releaseDate].filter(Boolean).map(esc).join(' · ')+'</small></div></div><div class="identify-links">'+(links||'<span class="muted">لم تتوفر روابط تشغيل لهذه النتيجة.</span>')+'</div><button class="primary-btn identify-search-button" id="identifySearchSimilar">ابحث عن هذه الأغنية في Smart Finder</button>';
+  $('#identifySearchSimilar').onclick=async()=>{
+    const q=[match.title,match.artist].filter(Boolean).join(' ');
+    $('#searchQuery').value=q;$('#searchType').value='music';go('discover');
+    $('#searchState').className='empty-state operation-state';$('#searchState').innerHTML=loaderMarkup('search','جارٍ البحث عن الأغنية في كتالوجات الموسيقى…');$('#searchResults').innerHTML='';
+    try{await smartSearch(q,'music')}catch(err){$('#searchState').textContent=err.message}
+  };
+}
+$('#identifySubmit').onclick=async()=>{
+  if(!identifyFile){identifyStatus('اختر ملفاً أو سجّل مقطعاً أولاً.','error');return}
+  const btn=$('#identifySubmit');btn.disabled=true;$('#identifyResult').hidden=true;
+  identifyStatus('نحلّل البصمة الصوتية ونقارنها بقاعدة بيانات الأغاني…','loading');
+  try{
+    const fd=new FormData();fd.append('file',identifyFile,identifyFile.name);fd.append('offset',String(Math.max(0,Number($('#identifyOffset').value)||0)));
+    const response=await fetch(getBackend()+'/api/smart/identify-audio',{method:'POST',body:fd});
+    const data=await response.json();
+    if(!response.ok)throw new Error(data.error||'تعذر التعرف على الأغنية.');
+    renderIdentifyMatch(data.match);
+    identifyStatus(data.match?'نجح التعرف على الأغنية.':'اكتمل التحليل دون العثور على تطابق.','success');
+  }catch(err){identifyStatus(err.message||'تعذر الاتصال بخدمة التعرف.','error')}
+  finally{btn.disabled=!identifyFile}
+};
+
 $('#convertProcess').onclick=()=>processFile($('#convertFile').files[0],'convert',{format:$('#convertFormat').value,name:$('#convertName').value},'convertFeedback');
 $('#compressProcess').onclick=()=>processFile($('#compressFile').files[0],'compress',{level:$('#compressLevel').value},'compressFeedback');
 $('#gifProcess').onclick=()=>processFile($('#gifFile').files[0],'gif',{start:+$('#gifStart').value,duration:+$('#gifDuration').value},'gifFeedback');
