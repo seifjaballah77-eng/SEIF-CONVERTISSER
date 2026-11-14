@@ -471,3 +471,12 @@ body.light .progress-track{background:#26314b18}
 .identify-no-match p{color:var(--muted);font-size:12px;line-height:1.8}
 .identify-privacy{font-size:11px;line-height:1.8;margin:12px 4px}
 @media(max-width:600px){.identify-match{align-items:flex-start;gap:12px}.identify-art{width:86px;height:86px;flex-basis:86px}.identify-match-info h2{font-size:17px}.identify-record-row>*{flex:1}.identify-record-row .muted{flex-basis:100%}}
+
+.identify-candidates{margin-top:22px;border-top:1px solid var(--line);padding-top:16px}
+.identify-candidates-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.identify-candidates-head>b{font-size:15px}
+.identify-candidates-head .muted{font-size:11px}
+.identify-ranked-card{position:relative;margin-bottom:12px}
+.identify-rank{display:inline-flex;align-items:center;width:max-content;padding:4px 9px;border-radius:20px;background:#7b69ed24;color:#c9bdff;font-size:11px;font-weight:700;margin:0 0 8px}
+.identify-loading{padding:20px;text-align:center;color:var(--muted);font-size:13px}
+.identify-download-note{font-size:11px;line-height:1.8;color:var(--muted);margin-top:12px}
