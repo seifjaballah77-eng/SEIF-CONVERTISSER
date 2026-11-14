@@ -162,17 +162,35 @@ async function searchAppleMusic(term){
   }).filter(x=>x.url);
   return {results};
 }
+async function searchJamendoMusic(term){
+  const clientId=process.env.JAMENDO_CLIENT_ID;
+  if(!clientId)return {results:[],warning:'بحث Jamendo يحتاج JAMENDO_CLIENT_ID في إعدادات الخادم.'};
+  const endpoint='https://api.jamendo.com/v3.0/tracks/?client_id='+encodeURIComponent(clientId)+'&format=json&limit=15&namesearch='+encodeURIComponent(term)+'&audioformat=mp32&include=musicinfo';
+  const data=await smartJson(endpoint,18000);
+  if(data.headers?.status==='failed')throw new Error(data.headers.error_message||'تعذر البحث في Jamendo.');
+  const results=(data.results||[]).map(x=>{
+    const allowed=x.audiodownload_allowed===true&&/^https:\/\//i.test(x.audiodownload||'');
+    const candidate=[x.name,x.artist_name].filter(Boolean).join(' ');
+    return {kind:'music',title:x.name||'مقطع موسيقي',artist:x.artist_name||'فنان مستقل',
+      thumbnail:x.album_image||x.image||null,duration:Number(x.duration)||null,url:x.shareurl||'https://www.jamendo.com/',
+      platform:'Jamendo',matchScore:smartMatchScore(term,candidate),downloadable:allowed,
+      downloadUrl:allowed?x.audiodownload:null,
+      note:allowed?'تنزيل مباشر MP3 متاح بإذن الفنان.':'الفنان لم يسمح بالتنزيل المباشر لهذا المقطع.'};
+  }).filter(x=>x.url);
+  return {results};
+}
 async function searchSmartMusic(term){
-  // Music discovery is intentionally restricted to Spotify and Apple Music only.
-  const [spotify,apple]=await Promise.all([
+  // Spotify and Apple Music are discovery/playback only; Jamendo exposes an explicit artist-controlled download permission.
+  const [spotify,apple,jamendo]=await Promise.all([
     searchSpotifyMusic(term).catch(error=>({results:[],warning:error.message||'تعذر البحث في Spotify.'})),
-    searchAppleMusic(term).catch(error=>({results:[],warning:'تعذر الوصول إلى Apple Music الآن.'}))
+    searchAppleMusic(term).catch(error=>({results:[],warning:'تعذر الوصول إلى Apple Music الآن.'})),
+    searchJamendoMusic(term).catch(error=>({results:[],warning:error.message||'تعذر البحث في Jamendo.'}))
   ]);
-  const results=[...spotify.results,...apple.results];
+  const results=[...spotify.results,...apple.results,...jamendo.results];
   const seen=new Set();
   return {results:results.filter(x=>{const key=x.url||[x.title,x.artist,x.platform].join('|');if(seen.has(key))return false;seen.add(key);return true;})
     .sort((a,b)=>Number(b.matchScore)-Number(a.matchScore)).slice(0,24),
-    warnings:[spotify.warning,apple.warning].filter(Boolean)};
+    warnings:[spotify.warning,apple.warning,jamendo.warning].filter(Boolean)};
 }
 async function searchArchiveVideos(term){
   const clean=term.replace(/[+\-!(){}\[\]^"~*?:]/g,' ').replace(/\s+/g,' ').trim().slice(0,150);
