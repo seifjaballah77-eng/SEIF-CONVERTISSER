@@ -64,7 +64,7 @@ function renderResolved(data){
   const embed=spotifyEmbed||appleEmbed?'<div class="smart-preview '+(appleEmbed?'apple-preview':'spotify-preview')+'"><iframe src="'+esc(data.embedUrl)+'" width="100%" height="'+(appleEmbed?'175':'152')+'" frameborder="0" allow="autoplay; encrypted-media; clipboard-write; fullscreen; picture-in-picture" loading="lazy" title="مشغل الموسيقى الرسمي"></iframe></div>':'';
   const thumb=data.thumbnail?'<img class="media-thumb" src="'+esc(data.thumbnail)+'" alt="">':'<div class="media-thumb thumb-placeholder">'+(isMusic?'♫':'▶')+'</div>';
   const downloadQuality=isMusic?'audio':'mp4';
-  const directDownload=getBackend()+'/api/media/download?url='+encodeURIComponent(data.url||data.originalUrl||'')+'&quality='+downloadQuality;
+  const directDownload=getBackend()+'/api/media/download?url='+encodeURIComponent(data.sourceUrl||data.url||data.originalUrl||'')+'&quality='+downloadQuality;
   box.innerHTML='<div class="media-result-main">'+thumb+'<div class="media-details"><div class="media-tags"><span class="chip">'+esc(data.platform)+'</span><span class="chip">'+(isMusic?'أغنية / موسيقى':'فيديو')+'</span></div><b>'+esc(data.title)+'</b><small>'+esc(data.artist||'تم استخراج معلومات المصدر')+'</small></div></div>'+embed+'<div class="smart-search-next"><p>تم تحليل المحتوى. يمكنك الآن تنزيله مباشرة.</p><a class="primary-btn" id="smartDownloadResolved" href="'+esc(directDownload)+'">تنزيل ↓</a></div>';
 }
 async function runSmartLink(url){
