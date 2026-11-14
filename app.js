@@ -23,7 +23,7 @@ function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;',
 async function copy(s){try{await navigator.clipboard.writeText(s);toast('تم نسخ الرابط')}catch{toast('تعذر النسخ؛ تحقق من إذن الحافظة')}}
 function detect(url){try{const h=new URL(url).hostname.toLowerCase();const has=d=>h===d||h.endsWith('.'+d);if(h==='music.youtube.com')return'YouTube Music';if(has('youtube.com')||has('youtu.be')||has('youtube-nocookie.com'))return'YouTube';if(has('tiktok.com'))return'TikTok';if(has('instagram.com'))return'Instagram';if(has('x.com')||has('twitter.com'))return'X (Twitter)';if(has('facebook.com')||has('fb.watch'))return'Facebook';if(has('twitch.tv'))return'Twitch';if(has('dailymotion.com')||has('dai.ly'))return'Dailymotion'}catch{}return'منصة غير معروفة'}
 function validUrl(s){try{const u=new URL(s);return ['http:','https:'].includes(u.protocol)}catch{return false}}
-let currentMedia=null,quickInspectTimer=null,inspectionTask=null,smartResolved=null;
+let quickInspectTimer=null,smartResolved=null;
 function setMediaStatus(el,message,kind=''){if(!el)return;el.textContent=message;el.className='media-status '+kind+(kind==='loading'?' is-loading':'')}
 function smartResultCard(r){
   const image=r.thumbnail?'<img class="smart-thumb" src="'+esc(r.thumbnail)+'" alt="" loading="lazy" onerror="this.style.display=\'none\'">':'<div class="smart-thumb smart-thumb-empty">'+(r.kind==='music'?'♫':'▶')+'</div>';
@@ -90,69 +90,6 @@ $('#searchForm').onsubmit=async e=>{
   $('#searchState').className='empty-state operation-state';$('#searchState').innerHTML=loaderMarkup('search','جارٍ البحث في كتالوجات الموسيقى وأرشيف الفيديو…');$('#searchResults').innerHTML='';
   try{await smartSearch(q,$('#searchType').value||'all')}catch(err){$('#searchState').className='empty-state';$('#searchState').innerHTML='<div class="empty-icon">!</div><h3>تعذر إكمال البحث</h3><p>'+esc(err.message)+'</p>'}
 };
-function downloadFilename(response){
-  const header=response.headers.get('Content-Disposition')||'';
-  const utf=header.match(/filename\*=UTF-8''([^;]+)/i);
-  if(utf){try{return decodeURIComponent(utf[1])}catch{}}
-  const plain=header.match(/filename="?([^";]+)"?/i);
-  return plain?.[1]||'seif-media-download';
-}
-async function downloadMedia(url,statusEl=$('#mediaStatus')){
-  if(!validUrl(url)){setMediaStatus(statusEl,'أدخل رابطاً صحيحاً أولاً.','error');return}
-  if(!currentMedia||currentMedia.url!==url){const ok=await inspectMedia(url,statusEl);if(!ok)return}
-  const base=getBackend();if(!base)return;
-  const quality=$('#mediaQuality')?.value||'mp4';
-  addHistory(url,detect(url),currentMedia?.data?.title||'');
-  const started=Date.now();
-  setProgressStatus(statusEl,'جارٍ تجهيز طلب التنزيل',null,elapsedLabel(0)+' · الاتصال بخادم المعالجة');
-  try{
-    const create=await fetch(base+'/api/media/download-jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url,quality})});
-    const created=await create.json();if(!create.ok)throw new Error(created.error||'تعذر بدء التنزيل');
-    const jobId=created.jobId;if(!jobId)throw new Error('لم يُرجع الخادم رقم مهمة التنزيل.');
-    let job=null;
-    while(true){
-      await new Promise(resolve=>setTimeout(resolve,2500));
-      const check=await fetch(base+'/api/media/download-jobs/'+encodeURIComponent(jobId));
-      const state=await check.json();if(!check.ok)throw new Error(state.error||'تعذر متابعة التنزيل');
-      job=state;
-      if(job.status==='failed')throw new Error(job.error||'فشل تجهيز الملف');
-      if(job.status==='ready')break;
-      const pct=job.percent!==null&&job.percent!==undefined&&Number.isFinite(Number(job.percent))?Number(job.percent):null;
-      const details=[elapsedLabel(Date.now()-started),job.speed?'السرعة '+job.speed:'',job.eta?'المتبقي '+job.eta:''].filter(Boolean).join(' · ');
-      setProgressStatus(statusEl,job.stage||'جارٍ تجهيز الفيديو',pct,details);
-    }
-    const nameUrl=base+'/api/media/download-jobs/'+encodeURIComponent(jobId)+'/file';
-    if(Number(job.size)>150*1024*1024){
-      const a=document.createElement('a');a.href=nameUrl;a.rel='noopener';document.body.appendChild(a);a.click();a.remove();
-      setMediaStatus(statusEl,'اكتمل تجهيز '+formatBytes(job.size)+'، وبدأ التنزيل عبر مدير التنزيلات في المتصفح.','success');
-      return;
-    }
-    setProgressStatus(statusEl,'جارٍ نقل الملف إلى جهازك',0,'اكتمل تجهيز الملف على الخادم · '+formatBytes(job.size));
-    const response=await fetch(nameUrl);
-    if(!response.ok){let message='تعذر نقل الملف إلى جهازك.';try{message=(await response.json()).error||message}catch{}throw new Error(message)}
-    const total=Number(response.headers.get('Content-Length')||job.size||0);
-    let received=0;const chunks=[];
-    if(response.body&&response.body.getReader){
-      const reader=response.body.getReader();
-      while(true){
-        const part=await reader.read();if(part.done)break;
-        chunks.push(part.value);received+=part.value.byteLength;
-        const pct=total?received/total*100:null;
-        setProgressStatus(statusEl,'جارٍ نقل الملف إلى جهازك',pct,[total?formatBytes(received)+' من '+formatBytes(total):formatBytes(received),elapsedLabel(Date.now()-started)].join(' · '));
-      }
-    }else{const blob=await response.blob();chunks.push(blob);received=blob.size}
-    const blob=new Blob(chunks,{type:response.headers.get('Content-Type')||'application/octet-stream'});
-    if(!blob.size)throw new Error('عاد المصدر بملف فارغ. جرّب رابطاً آخر.');
-    const name=downloadFilename(response);
-    const objectUrl=URL.createObjectURL(blob);
-    const a=document.createElement('a');a.href=objectUrl;a.download=name;a.rel='noopener';
-    document.body.appendChild(a);a.click();a.remove();
-    downloads.unshift({name,url:objectUrl,size:blob.size,time:Date.now()});renderDownloads();
-    setMediaStatus(statusEl,'اكتمل التنزيل وتجهيز الملف: '+name,'success');
-  }catch(err){
-    setMediaStatus(statusEl,err.message||'تعذر تنزيل الملف. تحقق من الرابط وحاول مجدداً.','error');
-  }
-}
 $('#addBatch').onclick=()=>{const urls=$('#batchInput').value.split(/\n+/).map(x=>x.trim()).filter(Boolean);let added=0;for(const u of urls){if(validUrl(u)){addHistory(u,detect(u));if(!batch.includes(u)){batch.push(u);added++}}}renderBatch();toast(added+' رابط أضيف إلى الطابور')};
 $('#clearBatch').onclick=()=>{batch=[];renderBatch()};function renderBatch(){$('#batchList').innerHTML=batch.map((u,i)=>`<div class="queue-item"><span class="url">${esc(u)}</span><button class="mini-btn" data-bcopy="${i}">نسخ</button><button class="mini-btn" data-bdel="${i}">حذف</button></div>`).join('');$$('[data-bcopy]').forEach(b=>b.onclick=()=>copy(batch[+b.dataset.bcopy]));$$('[data-bdel]').forEach(b=>b.onclick=()=>{batch.splice(+b.dataset.bdel,1);renderBatch()})}
 $('#imageInspect').onclick=()=>{$('#imageFeedback').textContent='تم استلام الرابط. استخراج الصور الأصلية يتطلب موصل المنصة والتحقق من صلاحية الوصول.';$('#imageFeedback').className='feedback'};
