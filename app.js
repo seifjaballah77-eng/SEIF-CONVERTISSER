@@ -153,18 +153,39 @@ function identifyLink(url,label){
   if(typeof url!=='string'||!/^https:\/\/[^ ]+/i.test(url))return '';
   return '<a class="secondary-btn identify-link" href="'+esc(url)+'" target="_blank" rel="noopener noreferrer">'+label+' ↗</a>';
 }
-function renderIdentifyMatch(match){
+async function renderIdentifyMatch(match){
   const result=$('#identifyResult');result.hidden=false;
   if(!match){result.innerHTML='<div class="identify-no-match"><div class="empty-icon">♫</div><b>لم نتعرف على الأغنية</b><p>جرّب مقطعاً أوضح مدته 8–12 ثانية، ويفضل أن تكون الموسيقى مسموعة دون كلام فوقها.</p></div>';return}
   const art=match.artwork?'<img class="identify-art" src="'+esc(match.artwork)+'" alt="غلاف الألبوم" loading="lazy">':'<div class="identify-art identify-art-empty">♫</div>';
-  const links=identifyLink(match.spotifyUrl,'Spotify')+identifyLink(match.appleMusicUrl,'Apple Music')+identifyLink(match.deezerUrl,'Deezer')+identifyLink(match.songUrl,'صفحة الأغنية');
-  result.innerHTML='<div class="identify-match">'+art+'<div class="identify-match-info"><span class="eyebrow">تم العثور على تطابق</span><h2>'+esc(match.title||'أغنية معروفة')+'</h2><b>'+esc(match.artist||'فنان غير معروف')+'</b><small>'+[match.album,match.releaseDate].filter(Boolean).map(esc).join(' · ')+'</small></div></div><div class="identify-links">'+(links||'<span class="muted">لم تتوفر روابط تشغيل لهذه النتيجة.</span>')+'</div><button class="primary-btn identify-search-button" id="identifySearchSimilar">ابحث عن هذه الأغنية في Smart Finder</button>';
-  $('#identifySearchSimilar').onclick=async()=>{
-    const q=[match.title,match.artist].filter(Boolean).join(' ');
-    $('#searchQuery').value=q;$('#searchType').value='music';go('discover');
-    $('#searchState').className='empty-state operation-state';$('#searchState').innerHTML=loaderMarkup('search','جارٍ البحث عن الأغنية في كتالوجات الموسيقى…');$('#searchResults').innerHTML='';
-    try{await smartSearch(q,'music')}catch(err){$('#searchState').textContent=err.message}
-  };
+  result.innerHTML='<div class="identify-match">'+art+'<div class="identify-match-info"><span class="eyebrow">بصمة الصوت الأقرب</span><h2>'+esc(match.title||'أغنية معروفة')+'</h2><b>'+esc(match.artist||'فنان غير معروف')+'</b><small>'+[match.album,match.releaseDate].filter(Boolean).map(esc).join(' · ')+'</small></div></div><div class="identify-candidates"><div class="identify-candidates-head"><b>أقرب النتائج المتاحة</b><span class="muted" id="identifyCandidateCount">جارٍ الفرز…</span></div><div id="identifyCandidateList"><div class="identify-loading">نبحث عن النسخ الأقرب ونرتبها لك…</div></div></div><p class="identify-download-note">يظهر زر التنزيل المباشر فقط للملفات التي يسمح مصدرها وترخيصها بالتنزيل. بقية النتائج تفتح المصدر الرسمي.</p>';
+  const q=[match.title,match.artist].filter(Boolean).join(' ');
+  try{
+    const response=await fetch(getBackend()+'/api/smart/search?q='+encodeURIComponent(q)+'&type=music');
+    const data=await response.json();if(!response.ok)throw new Error(data.error||'تعذر البحث عن النسخ.');
+    const rows=(data.results||[]).filter(r=>r&&r.kind==='music');
+    const tokens=v=>String(v||'').toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N} ]/gu,' ').split(/\s+/).filter(Boolean);
+    const target=tokens(q);
+    const score=r=>{
+      const title=tokens(r.title),artist=tokens(r.artist),all=new Set([...title,...artist]);
+      const overlap=target.filter(t=>all.has(t)).length/Math.max(1,target.length);
+      const exact=String(r.title||'').toLowerCase().includes(String(match.title||'').toLowerCase())?0.25:0;
+      return Math.max(Number(r.matchScore)||0,Math.min(100,Math.round((overlap+exact)*100)));
+    };
+    rows.forEach(r=>r._closestScore=score(r));
+    rows.sort((x,y)=>y._closestScore-x._closestScore);
+    const list=$('#identifyCandidateList');
+    if(!rows.length){list.innerHTML='<div class="identify-no-match"><b>لم نعثر على نسخ أخرى في المصادر المتاحة.</b></div>'}
+    else{
+      list.innerHTML=rows.slice(0,8).map(r=>{
+        const card=smartResultCard(r);
+        return card.replace('<article class="smart-card">','<article class="smart-card identify-ranked-card"><span class="identify-rank">قرب '+r._closestScore+'%</span>');
+      }).join('');
+    }
+    $('#identifyCandidateCount').textContent=rows.length+' نتيجة مرتبة';
+  }catch(err){
+    $('#identifyCandidateCount').textContent='تعذر جلب النتائج';
+    $('#identifyCandidateList').innerHTML='<div class="identify-no-match">'+esc(err.message)+'</div>';
+  }
 }
 $('#identifySubmit').onclick=async()=>{
   if(!identifyFile){identifyStatus('اختر ملفاً أو سجّل مقطعاً أولاً.','error');return}
@@ -175,7 +196,7 @@ $('#identifySubmit').onclick=async()=>{
     const response=await fetch(getBackend()+'/api/smart/identify-audio',{method:'POST',body:fd});
     const data=await response.json();
     if(!response.ok)throw new Error(data.error||'تعذر التعرف على الأغنية.');
-    renderIdentifyMatch(data.match);
+    await renderIdentifyMatch(data.match);
     identifyStatus(data.match?'نجح التعرف على الأغنية.':'اكتمل التحليل دون العثور على تطابق.','success');
   }catch(err){identifyStatus(err.message||'تعذر الاتصال بخدمة التعرف.','error')}
   finally{btn.disabled=!identifyFile}
