@@ -174,16 +174,37 @@ app.post('/api/media/inspect',async(req,res)=>{
 });
 const qualitySelectors={best:'bestvideo*+bestaudio/best','2160':'bestvideo*[height<=2160]+bestaudio/best[height<=2160]','1440':'bestvideo*[height<=1440]+bestaudio/best[height<=1440]','1080':'bestvideo*[height<=1080]+bestaudio/best[height<=1080]','720':'bestvideo*[height<=720]+bestaudio/best[height<=720]','480':'bestvideo*[height<=480]+bestaudio/best[height<=480]','360':'bestvideo*[height<=360]+bestaudio/best[height<=360]','audio':'bestaudio/best'};
 const mediaJobs=new Map();
+// Process one media download at a time to protect the service from overload.
+// Jobs remain on the server if the browser tab is closed.
+const mediaJobQueue=[];
+let activeMediaWorkers=0;
+function enqueueMediaJob(job,runner){
+  job.status='queued';
+  job.stage='في قائمة الانتظار';
+  mediaJobQueue.push({job,runner});
+  pumpMediaJobQueue();
+}
+function pumpMediaJobQueue(){
+  while(activeMediaWorkers<1&&mediaJobQueue.length){
+    const item=mediaJobQueue.shift();
+    activeMediaWorkers++;
+    item.job.status='processing';
+    Promise.resolve().then(item.runner).finally(()=>{
+      activeMediaWorkers=Math.max(0,activeMediaWorkers-1);
+      pumpMediaJobQueue();
+    });
+  }
+}
 app.post('/api/media/download-jobs',async(req,res)=>{
   let url,quality,work;
   try{url=checkedMediaUrl(req.body&&req.body.url);quality=String(req.body&&req.body.quality||'best');}
   catch(err){return res.status(400).json({error:err.message||'رابط غير صالح.'});}
   const format=qualitySelectors[quality]||qualitySelectors.best;
   const id=crypto.randomUUID();
-  const job={id,status:'processing',stage:'يتم تجهيز التنزيل',percent:null,speed:'',eta:'',createdAt:Date.now(),filePath:null,fileName:null,size:0,error:null};
+  const job={id,status:'queued',stage:'في قائمة الانتظار',percent:null,speed:'',eta:'',createdAt:Date.now(),filePath:null,fileName:null,size:0,error:null};
   mediaJobs.set(id,job);
   res.status(202).json({ok:true,jobId:id});
-  (async()=>{
+  enqueueMediaJob(job,async()=>{
     try{
       work=path.join(os.tmpdir(),'seif-media-job-'+id);
       await fs.promises.mkdir(work,{recursive:true});
@@ -191,7 +212,7 @@ app.post('/api/media/download-jobs',async(req,res)=>{
       const downloadArgs=['--no-warnings','--no-colors','--newline','--progress','--progress-template','download:SEIF_PROGRESS:%(progress._percent_str)s|%(progress._speed_str)s|%(progress._eta_str)s','--no-playlist','--no-part','--format',format,'--output',template,'--print','after_move:filepath'];
       if(quality==='audio')downloadArgs.push('--extract-audio','--audio-format','mp3','--audio-quality','0');
       job.stage='يتصل بالمصدر ويجهّز الفيديو';
-      await runYtDlp([...downloadArgs,url],{maxOutput:100000,timeoutMs:10*60_000,onProgress:p=>{job.stage='جارٍ تنزيل الوسائط من المصدر';job.percent=p.percent;job.speed=p.speed;job.eta=p.eta;job.updatedAt=Date.now();}});
+      await runYtDlp([...downloadArgs,url],{maxOutput:100000,timeoutMs:2*60*60_000,onProgress:p=>{job.stage='جارٍ تنزيل الوسائط من المصدر';job.percent=p.percent;job.speed=p.speed;job.eta=p.eta;job.updatedAt=Date.now();}});
       const names=await fs.promises.readdir(work);
       if(!names.length)throw new Error('لم يُنشئ المصدر ملفاً قابلاً للتنزيل.');
       const file=path.join(work,names[0]),stat=await fs.promises.stat(file);
@@ -201,8 +222,8 @@ app.post('/api/media/download-jobs',async(req,res)=>{
       job.status='failed';job.error=err.message||'تعذر تنزيل الوسائط.';job.stage='فشل التنزيل';job.updatedAt=Date.now();
       if(work)await fs.promises.rm(work,{recursive:true,force:true}).catch(()=>{});
     }
-  })();
-  const expiry=setTimeout(async()=>{const j=mediaJobs.get(id);if(j&&j.status!=='completed'){if(work)await fs.promises.rm(work,{recursive:true,force:true}).catch(()=>{});mediaJobs.delete(id);}},30*60_000);
+  });
+  const expiry=setTimeout(async()=>{const j=mediaJobs.get(id);if(j){if(work)await fs.promises.rm(work,{recursive:true,force:true}).catch(()=>{});mediaJobs.delete(id);}},24*60*60_000);
   expiry.unref?.();
 });
 app.get('/api/media/download-jobs/:id', (req,res)=>{
