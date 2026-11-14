@@ -483,3 +483,9 @@ body.light .progress-track{background:#26314b18}
 
 .smart-audio-preview audio{display:block;width:100%;min-height:42px}
 .smart-action-disabled{display:inline-flex;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:9px;color:var(--muted);font-size:11px;line-height:1.6;max-width:100%}
+
+
+.identify-ranked-card .smart-card-body{gap:10px}
+.identify-ranked-card .smart-preview{margin-top:4px}
+.identify-ranked-card .smart-preview iframe{height:220px}
+.identify-ranked-card .smart-card-actions{margin-top:4px}
