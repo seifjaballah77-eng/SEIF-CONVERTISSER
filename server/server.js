@@ -40,31 +40,53 @@ function checkedMediaUrl(raw){
   if(u.username||u.password)throw new Error('الروابط التي تتضمن بيانات دخول غير مسموحة.');
   return u.toString();
 }
-// Optional authenticated source access. Store the exported Netscape cookie file
-// as the Render secret YT_COOKIES_BASE64; never commit cookies to the repository.
+// Optional authenticated source access. Render Secret Files may be Netscape
+// or a JSON cookie export; JSON is converted locally and never logged or committed.
 let ytCookiesPath=null;
+function jsonCookiesToNetscape(contents){
+  let cookies;
+  try{cookies=JSON.parse(contents);}catch{throw new Error('ملف YouTube Cookies ليس JSON صالحاً ولا بصيغة Netscape.');}
+  if(!Array.isArray(cookies)||!cookies.length)throw new Error('ملف JSON لا يحتوي على قائمة Cookies صالحة.');
+  const lines=['# Netscape HTTP Cookie File'];
+  for(const c of cookies){
+    if(!c||typeof c!=='object'||typeof c.name!=='string'||typeof c.value!=='string'||typeof c.domain!=='string')continue;
+    const domain=c.domain.trim();
+    const cookiePath=typeof c.path==='string'&&c.path.startsWith('/')?c.path:'/';
+    if(!domain||/[\\t\\r\\n]/.test(domain)||/[\\t\\r\\n]/.test(c.name)||/[\\t\\r\\n]/.test(c.value)||/[\\t\\r\\n]/.test(cookiePath))continue;
+    const includeSubdomains=c.hostOnly===true?'FALSE':'TRUE';
+    const secure=c.secure===true?'TRUE':'FALSE';
+    const expires=c.session===true?0:Math.max(0,Math.floor(Number(c.expirationDate)||0));
+    const httpOnly=c.httpOnly===true;
+    const cookieDomain=(httpOnly?'#HttpOnly_':'')+domain;
+    lines.push([cookieDomain,includeSubdomains,cookiePath,secure,String(expires),c.name,c.value].join('\\t'));
+  }
+  if(lines.length===1)throw new Error('لم نعثر على Cookies قابلة للتحويل داخل ملف JSON.');
+  return lines.join('\\n')+'\\n';
+}
 function getYtDlpCookieArgs(){
   if(!ytCookiesPath){
-    // Render Secret Files are the simplest and safest setup: upload the
-    // Netscape cookie file as /etc/secrets/youtube-cookies.txt.
-    const secretFile=process.env.YT_COOKIES_FILE||'/etc/secrets/youtube-cookies.txt';
-    if(fs.existsSync(secretFile)){
+    const configured=process.env.YT_COOKIES_FILE;
+    const candidates=configured?[configured]:['/etc/secrets/youtube-cookies.txt','/etc/secrets/cookies.json.txt'];
+    let secretFile=candidates.find(file=>fs.existsSync(file));
+    let contents='';
+    if(secretFile){
       const stat=fs.statSync(secretFile);
       if(!stat.isFile()||stat.size<1||stat.size>2_000_000)throw new Error('ملف YouTube Cookies غير صالح أو حجمه أكبر من الحد المسموح.');
-      const contents=fs.readFileSync(secretFile,'utf8');
-      if(!contents.includes('# Netscape HTTP Cookie File')&&!contents.includes('# HTTP Cookie File'))
-        throw new Error('ملف YouTube Cookies يجب أن يكون بصيغة Netscape.');
-      ytCookiesPath=secretFile;
+      contents=fs.readFileSync(secretFile,'utf8');
     }else{
       const encoded=process.env.YT_COOKIES_BASE64;
       if(!encoded)return [];
       const decoded=Buffer.from(encoded,'base64');
       if(!decoded.length||decoded.length>2_000_000)throw new Error('إعداد Cookies غير صالح أو حجمه أكبر من الحد المسموح.');
-      const contents=decoded.toString('utf8');
-      if(!contents.includes('# Netscape HTTP Cookie File')&&!contents.includes('# HTTP Cookie File'))
-        throw new Error('ملف Cookies يجب أن يكون بصيغة Netscape.');
+      contents=decoded.toString('utf8');
+    }
+    if(contents.includes('# Netscape HTTP Cookie File')||contents.includes('# HTTP Cookie File')){
+      ytCookiesPath=secretFile||path.join(os.tmpdir(),'seif-ytdlp-cookies-'+process.pid+'.txt');
+      if(!secretFile)fs.writeFileSync(ytCookiesPath,contents,{mode:0o600});
+    }else{
+      const netscape=jsonCookiesToNetscape(contents);
       ytCookiesPath=path.join(os.tmpdir(),'seif-ytdlp-cookies-'+process.pid+'.txt');
-      fs.writeFileSync(ytCookiesPath,contents,{mode:0o600});
+      fs.writeFileSync(ytCookiesPath,netscape,{mode:0o600});
     }
   }
   return ['--cookies',ytCookiesPath];
