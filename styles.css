@@ -489,3 +489,15 @@ body.light .progress-track{background:#26314b18}
 .identify-ranked-card .smart-preview{margin-top:4px}
 .identify-ranked-card .smart-preview iframe{height:220px}
 .identify-ranked-card .smart-card-actions{margin-top:4px}
+
+/* In-app music mini player */
+.music-player-dock{position:fixed;z-index:30;left:22px;right:282px;bottom:16px;display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid var(--line);border-radius:16px;background:color-mix(in srgb,var(--panel) 94%,transparent);box-shadow:0 16px 48px #0008;backdrop-filter:blur(18px)}
+.music-player-dock[hidden]{display:none}
+.music-player-dock>img{width:44px;height:44px;object-fit:cover;border-radius:10px}
+.music-dock-info{min-width:110px;flex:1;display:flex;flex-direction:column;gap:3px;overflow:hidden}
+.music-dock-info b,.music-dock-info small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.music-dock-info small{color:var(--muted);font-size:11px}
+.music-player-dock audio{width:min(420px,48%);height:38px}
+.music-player-dock .icon-btn{flex:0 0 36px}
+.play-in-app{width:100%;justify-content:center}
+@media(max-width:760px){.music-player-dock{left:10px;right:10px;bottom:10px;gap:8px;padding:9px}.music-player-dock>img{width:38px;height:38px}.music-dock-info{min-width:70px}.music-player-dock audio{width:42%;min-width:110px}}
