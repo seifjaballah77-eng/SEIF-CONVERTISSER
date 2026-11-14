@@ -93,7 +93,7 @@ function getYtDlpCookieArgs(){
   }
   return ['--cookies',ytCookiesPath];
 }
-function runYtDlp(args,{maxOutput=2_000_000,timeoutMs=60_000}={}){
+function runYtDlp(args,{maxOutput=2_000_000,timeoutMs=60_000,onProgress}={}){
   return new Promise((resolve,reject)=>{
     let authArgs;
     // Apply the user's YouTube session only to YouTube URLs. Other platforms
@@ -124,7 +124,16 @@ function runYtDlp(args,{maxOutput=2_000_000,timeoutMs=60_000}={}){
         finish(new Error('استجابة المصدر كبيرة جداً.'));
       }
     });
-    p.stderr.on('data',d=>{stderr+=d.toString();if(stderr.length>12000)stderr=stderr.slice(-12000);});
+    p.stderr.on('data',d=>{
+      const chunk=d.toString();
+      stderr+=chunk;if(stderr.length>12000)stderr=stderr.slice(-12000);
+      if(typeof onProgress==='function'){
+        for(const line of chunk.split(/\r?\n/)){
+          const m=line.match(/SEIF_PROGRESS:\s*([\d.]+)%\|([^|]*)\|([^|\r\n]*)/);
+          if(m)onProgress({percent:Math.max(0,Math.min(100,Number(m[1])||0)),speed:m[2].trim(),eta:m[3].trim()});
+        }
+      }
+    });
     p.on('error',err=>finish(err));
     p.on('close',code=>{
       if(code===0)finish(null,stdout.trim());
@@ -160,6 +169,55 @@ app.post('/api/media/inspect',async(req,res)=>{
   }catch(err){res.status(422).json({error:err.message||'تعذر تحليل الرابط.'});}
 });
 const qualitySelectors={best:'bestvideo*+bestaudio/best','2160':'bestvideo*[height<=2160]+bestaudio/best[height<=2160]','1440':'bestvideo*[height<=1440]+bestaudio/best[height<=1440]','1080':'bestvideo*[height<=1080]+bestaudio/best[height<=1080]','720':'bestvideo*[height<=720]+bestaudio/best[height<=720]','480':'bestvideo*[height<=480]+bestaudio/best[height<=480]','360':'bestvideo*[height<=360]+bestaudio/best[height<=360]','audio':'bestaudio/best'};
+const mediaJobs=new Map();
+app.post('/api/media/download-jobs',async(req,res)=>{
+  let url,quality,work;
+  try{url=checkedMediaUrl(req.body&&req.body.url);quality=String(req.body&&req.body.quality||'best');}
+  catch(err){return res.status(400).json({error:err.message||'رابط غير صالح.'});}
+  const format=qualitySelectors[quality]||qualitySelectors.best;
+  const id=crypto.randomUUID();
+  const job={id,status:'processing',stage:'يتم تجهيز التنزيل',percent:null,speed:'',eta:'',createdAt:Date.now(),filePath:null,fileName:null,size:0,error:null};
+  mediaJobs.set(id,job);
+  res.status(202).json({ok:true,jobId:id});
+  (async()=>{
+    try{
+      work=path.join(os.tmpdir(),'seif-media-job-'+id);
+      await fs.promises.mkdir(work,{recursive:true});
+      const template=path.join(work,'%(title).90B-%(id)s.%(ext)s');
+      const downloadArgs=['--no-warnings','--no-colors','--newline','--progress','--progress-template','download:SEIF_PROGRESS:%(progress._percent_str)s|%(progress._speed_str)s|%(progress._eta_str)s','--no-playlist','--no-part','--format',format,'--output',template,'--print','after_move:filepath'];
+      if(quality==='audio')downloadArgs.push('--extract-audio','--audio-format','mp3','--audio-quality','0');
+      job.stage='يتصل بالمصدر ويجهّز الفيديو';
+      await runYtDlp([...downloadArgs,url],{maxOutput:100000,timeoutMs:10*60_000,onProgress:p=>{job.stage='جارٍ تنزيل الوسائط من المصدر';job.percent=p.percent;job.speed=p.speed;job.eta=p.eta;job.updatedAt=Date.now();}});
+      const names=await fs.promises.readdir(work);
+      if(!names.length)throw new Error('لم يُنشئ المصدر ملفاً قابلاً للتنزيل.');
+      const file=path.join(work,names[0]),stat=await fs.promises.stat(file);
+      if(!stat.isFile())throw new Error('الملف الناتج غير صالح.');
+      job.filePath=file;job.fileName=safeBase(path.parse(file).name)+path.extname(file).toLowerCase();job.size=stat.size;job.percent=100;job.stage='اكتمل تجهيز الملف';job.status='ready';job.updatedAt=Date.now();
+    }catch(err){
+      job.status='failed';job.error=err.message||'تعذر تنزيل الوسائط.';job.stage='فشل التنزيل';job.updatedAt=Date.now();
+      if(work)await fs.promises.rm(work,{recursive:true,force:true}).catch(()=>{});
+    }
+  })();
+  const expiry=setTimeout(async()=>{const j=mediaJobs.get(id);if(j&&j.status!=='completed'){if(work)await fs.promises.rm(work,{recursive:true,force:true}).catch(()=>{});mediaJobs.delete(id);}},30*60_000);
+  expiry.unref?.();
+});
+app.get('/api/media/download-jobs/:id', (req,res)=>{
+  const job=mediaJobs.get(req.params.id);
+  if(!job)return res.status(404).json({error:'انتهت صلاحية طلب التنزيل أو لم يتم العثور عليه.'});
+  res.json({ok:true,status:job.status,stage:job.stage,percent:job.percent,speed:job.speed,eta:job.eta,size:job.size,error:job.error});
+});
+app.get('/api/media/download-jobs/:id/file',async(req,res)=>{
+  const job=mediaJobs.get(req.params.id);
+  if(!job||job.status!=='ready'||!job.filePath)return res.status(409).json({error:'الملف لم يجهز بعد.'});
+  const filePath=job.filePath;
+  res.download(filePath,job.fileName,async err=>{
+    if(err&&!res.headersSent)res.status(500).end();
+    const current=mediaJobs.get(req.params.id);
+    if(current){current.status='completed';mediaJobs.delete(req.params.id);}
+    const dir=path.dirname(filePath);
+    await fs.promises.rm(dir,{recursive:true,force:true}).catch(()=>{});
+  });
+});
 app.get('/api/media/download',async(req,res)=>{
   let work;
   try{
