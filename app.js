@@ -44,7 +44,7 @@ function renderMediaResult(url,data){
   const thumb=data.thumbnail&&/^https:\/\//i.test(data.thumbnail)?data.thumbnail:'';
   const platform=detect(url)==='منصة غير معروفة'?data.platform:detect(url);
   box.hidden=false;
-  box.innerHTML=`<div class="media-result-main">${thumb?`<img class="media-thumb" src="${esc(thumb)}" alt="الصورة المصغرة للفيديو" onerror="this.onerror=null;this.src=this.dataset.fallback||'';this.classList.toggle('thumb-failed',!this.src)" data-fallback="${esc(data.thumbnailFallback||'')}">`:'<div class="media-thumb thumb-placeholder">▶</div>'}<div class="media-details"><div class="media-tags"><span class="chip">${esc(platform)}</span><span class="chip">${mediaTypeLabel(data.mediaType)}</span></div><b>${esc(data.title||'وسائط من المصدر')}</b><small>${data.duration?Math.floor(data.duration/60)+':'+String(Math.floor(data.duration%60)).padStart(2,'0'):'معاينة الفيديو'}</small></div></div><div class="media-download-row"><label>الجودة<select id="mediaQuality">${(data.formats||[{value:'best',label:'أفضل جودة متاحة'}]).map(x=>`<option value="${esc(x.value)}">${esc(x.label)}</option>`).join('')}${data.mediaType==='video'&&!data.partnerNoTube?'<option value="audio">استخراج الصوت MP3</option>':''}</select></label><button class="primary-btn" id="downloadMediaBtn">تنزيل الملف الآن ↓</button></div><p class="media-note">${data.partnerNoTube?'اختر الصيغة المطلوبة، وسيتم فتح صفحة إكمال المعالجة.':'سيتم تنزيل أفضل نسخة متاحة من المصدر دون ادعاء جودة غير موجودة.'}</p>`;
+  box.innerHTML=`<div class="media-result-main">${thumb?`<img class="media-thumb" src="${esc(thumb)}" alt="الصورة المصغرة للفيديو" onerror="this.onerror=null;this.src=this.dataset.fallback||'';this.classList.toggle('thumb-failed',!this.src)" data-fallback="${esc(data.thumbnailFallback||'')}">`:'<div class="media-thumb thumb-placeholder">▶</div>'}<div class="media-details"><div class="media-tags"><span class="chip">${esc(platform)}</span><span class="chip">${mediaTypeLabel(data.mediaType)}</span></div><b>${esc(data.title||'وسائط من المصدر')}</b><small>${data.duration?Math.floor(data.duration/60)+':'+String(Math.floor(data.duration%60)).padStart(2,'0'):'معاينة الفيديو'}</small></div></div><div class="media-download-row"><label>الجودة<select id="mediaQuality">${(data.formats||[{value:'best',label:'أفضل جودة متاحة'}]).map(x=>`<option value="${x.value==='best'?'mp4':'mp4_'+esc(x.value)}">${x.value==='best'?'MP4 · أفضل جودة متاحة':'MP4 · '+esc(x.label)}</option>`).join('')}<option value="audio">MP3 · صوت فقط</option></select></label><button class="primary-btn" id="downloadMediaBtn">تنزيل الملف الآن ↓</button></div><p class="media-note">${data.partnerNoTube?'اختر الصيغة المطلوبة، وسيتم فتح صفحة إكمال المعالجة.':'سيتم تنزيل أفضل نسخة متاحة من المصدر دون ادعاء جودة غير موجودة.'}</p>`;
   $('#downloadMediaBtn').onclick=()=>downloadMedia(url);
 }
 async function getPartnerPreview(url,platform){
@@ -93,7 +93,7 @@ async function downloadMedia(url,statusEl=$('#mediaStatus')){
   if(!validUrl(url)){setMediaStatus(statusEl,'أدخل رابطاً صحيحاً أولاً.','error');return}
   if(!currentMedia||currentMedia.url!==url){const ok=await inspectMedia(url,statusEl);if(!ok)return}
   const base=getBackend();if(!base)return;
-  const quality=$('#mediaQuality')?.value||'best';
+  const quality=$('#mediaQuality')?.value||'mp4';
   addHistory(url,detect(url),currentMedia?.data?.title||'');
   const started=Date.now();
   setProgressStatus(statusEl,'جارٍ تجهيز طلب التنزيل',null,elapsedLabel(0)+' · الاتصال بخادم المعالجة');
