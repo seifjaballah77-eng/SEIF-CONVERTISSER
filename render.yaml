@@ -15,3 +15,9 @@ services:
         sync: false
       - key: YT_COOKIES_BASE64
         sync: false
+      - key: JAMENDO_CLIENT_ID
+        sync: false
+      - key: SPOTIFY_CLIENT_ID
+        sync: false
+      - key: SPOTIFY_CLIENT_SECRET
+        sync: false
