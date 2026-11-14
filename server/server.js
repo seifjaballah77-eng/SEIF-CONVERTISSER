@@ -87,15 +87,32 @@ app.post('/api/smart/resolve',async(req,res)=>{
     res.json({ok:true,mediaType:isMusic?'music':'video',platform,title,artist,thumbnail,duration,sourceUrl:u.toString(),embedUrl,query:[title,artist].filter(Boolean).join(' ')});
   }catch(err){res.status(422).json({error:err.message||'تعذر فهم الرابط.'});}
 });
+
+function smartMatchScore(query,candidate){
+  const norm=v=>String(v||'').toLocaleLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/[^\p{L}\p{N}]+/gu,' ').trim();
+  const q=norm(query).split(/\s+/).filter(x=>x.length>1),c=norm(candidate).split(/\s+/).filter(x=>x.length>1);
+  if(!q.length||!c.length)return 0;
+  const set=new Set(c),hits=q.filter(t=>set.has(t)).length;
+  const coverage=hits/q.length,precision=hits/Math.max(1,new Set(c).size);
+  if(norm(query)===norm(candidate))return 100;
+  return Math.round(Math.min(99,coverage*78+precision*22));
+}
+
 async function searchSmartMusic(term){
   const url='https://itunes.apple.com/search?media=music&entity=song&limit=12&country=US&term='+encodeURIComponent(term);
   const data=await smartJson(url,14000);
-  return (data.results||[]).map(x=>({
-    kind:'music',title:x.trackName||'أغنية',artist:x.artistName||'فنان غير معروف',
-    album:x.collectionName||'',thumbnail:x.artworkUrl100||null,duration:x.trackTimeMillis?Math.round(x.trackTimeMillis/1000):null,
-    url:x.trackViewUrl||x.collectionViewUrl||'',platform:'Apple Music',downloadable:false,
-    note:'التشغيل والشراء من المتجر الرسمي؛ لا نوفر استخراج MP3 من خدمات البث.'
-  })).filter(x=>x.url);
+  return (data.results||[]).map(x=>{
+    const url=x.trackViewUrl||x.collectionViewUrl||'';
+    const embedUrl=url.replace(/^https:\/\/music\.apple\.com\//i,'https://embed.music.apple.com/');
+    const candidate=[x.trackName,x.artistName].filter(Boolean).join(' ');
+    return {
+      kind:'music',title:x.trackName||'أغنية',artist:x.artistName||'فنان غير معروف',
+      album:x.collectionName||'',thumbnail:x.artworkUrl100||null,duration:x.trackTimeMillis?Math.round(x.trackTimeMillis/1000):null,
+      url,embedUrl:/^https:\/\/embed\.music\.apple\.com\//i.test(embedUrl)?embedUrl:null,
+      matchScore:smartMatchScore(term,candidate),platform:'Apple Music',downloadable:false,
+      note:'معاينة رسمية من Apple Music؛ التنزيل لا يتم من خدمات البث.'
+    };
+  }).filter(x=>x.url).sort((a,b)=>b.matchScore-a.matchScore);
 }
 async function searchSmartVideo(term){
   const clean=term.replace(/[+\-!(){}\[\]^"~*?:\\/]/g,' ').replace(/\s+/g,' ').trim().slice(0,150);
@@ -110,8 +127,9 @@ async function searchSmartVideo(term){
       const files=(meta.files||[]).filter(f=>f.source==='original'&&/\.(mp4|webm|m4v|mov|mpeg|mpg|ogv)$/i.test(f.name||''));
       const file=files.sort((a,b)=>(Number(b.size)||0)-(Number(a.size)||0))[0];
       const allowed=smartLicenseAllowed(meta);
+      const title=firstText(doc.title)||doc.identifier;
       return {
-        kind:'video',title:firstText(doc.title)||doc.identifier,artist:firstText(doc.creator),
+        kind:'video',title,artist:firstText(doc.creator),matchScore:smartMatchScore(clean,title),
         description:firstText(doc.description).replace(/<[^>]*>/g,' ').slice(0,240),
         thumbnail:'https://archive.org/services/img/'+encodeURIComponent(doc.identifier),
         duration:null,platform:'Internet Archive',url:'https://archive.org/details/'+encodeURIComponent(doc.identifier),
@@ -123,7 +141,7 @@ async function searchSmartVideo(term){
       };
     }catch{return null}
   }));
-  return details.filter(Boolean);
+  return details.filter(Boolean).sort((a,b)=>b.matchScore-a.matchScore);
 }
 app.get('/api/smart/search',async(req,res)=>{
   const term=String(req.query.q||'').trim().slice(0,180);
