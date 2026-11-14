@@ -70,6 +70,24 @@ app.post('/api/smart/resolve',async(req,res)=>{
       }
       const bits=title.split(/\s+[·–—]\s+/);
       if(bits.length>1){title=bits[0];artist=bits.slice(1).join(' · ')}
+    }else if(host==='music.apple.com'){
+      const id=u.searchParams.get('i')||u.pathname.match(/\/(\d+)(?:\/?$)/)?.[1];
+      if(id){
+        const catalog=await smartJson('https://itunes.apple.com/lookup?id='+encodeURIComponent(id)+'&entity=song&country=US');
+        const item=(catalog.results||[]).find(x=>x.wrapperType==='track')||(catalog.results||[])[0];
+        if(item){
+          title=item.trackName||item.collectionName||'محتوى Apple Music';
+          artist=item.artistName||'';
+          thumbnail=item.artworkUrl100||item.artworkUrl60||null;
+          const link=item.trackViewUrl||u.toString();
+          embedUrl=link.replace(/^https:\/\/music\.apple\.com\//i,'https://embed.music.apple.com/');
+        }
+      }
+      if(!title){
+        const meta=await smartJson('https://itunes.apple.com/search?media=music&entity=song&limit=1&term='+encodeURIComponent(decodeURIComponent(u.pathname.split('/').filter(Boolean).slice(2,-1).join(' ').replace(/-/g,' '))));
+        const item=meta.results?.[0];
+        if(item){title=item.trackName||'';artist=item.artistName||'';thumbnail=item.artworkUrl100||null;embedUrl=(item.trackViewUrl||'').replace(/^https:\/\/music\.apple\.com\//i,'https://embed.music.apple.com/')}
+      }
     }else if(host==='music.youtube.com'){
       const raw=await runYtDlp(['--dump-single-json','--skip-download','--no-warnings','--no-progress','--no-playlist',u.toString()],{timeoutMs:18000,maxOutput:500000});
       const info=JSON.parse(raw);title=info.track||info.title||info.fulltitle||'';artist=info.artist||info.artists?.join(', ')||info.uploader||'';thumbnail=info.thumbnail||null;duration=Number(info.duration)||null;
