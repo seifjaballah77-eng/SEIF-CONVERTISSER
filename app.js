@@ -59,7 +59,9 @@ async function resolveSmartLink(url){
 function renderResolved(data){
   const box=$('#mediaResult');box.hidden=false;
   const isMusic=data.mediaType==='music';
-  const embed=data.embedUrl&&/^https:\/\/open\.spotify\.com\/embed\//.test(data.embedUrl)?'<div class="smart-preview spotify-preview"><iframe src="'+esc(data.embedUrl)+'" width="100%" height="152" frameborder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy" title="مشغل Spotify"></iframe></div>':'';
+  const spotifyEmbed=data.embedUrl&&/^https:\/\/open\.spotify\.com\/embed\//.test(data.embedUrl);
+  const appleEmbed=data.embedUrl&&/^https:\/\/embed\.music\.apple\.com\//.test(data.embedUrl);
+  const embed=spotifyEmbed||appleEmbed?'<div class="smart-preview '+(appleEmbed?'apple-preview':'spotify-preview')+'"><iframe src="'+esc(data.embedUrl)+'" width="100%" height="'+(appleEmbed?'175':'152')+'" frameborder="0" allow="autoplay; encrypted-media; clipboard-write; fullscreen; picture-in-picture" loading="lazy" title="مشغل الموسيقى الرسمي"></iframe></div>':'';
   const thumb=data.thumbnail?'<img class="media-thumb" src="'+esc(data.thumbnail)+'" alt="">':'<div class="media-thumb thumb-placeholder">'+(isMusic?'♫':'▶')+'</div>';
   box.innerHTML='<div class="media-result-main">'+thumb+'<div class="media-details"><div class="media-tags"><span class="chip">'+esc(data.platform)+'</span><span class="chip">'+(isMusic?'أغنية / موسيقى':'فيديو')+'</span></div><b>'+esc(data.title)+'</b><small>'+esc(data.artist||'تم استخراج معلومات المصدر')+'</small></div></div>'+embed+'<div class="smart-search-next"><p>تم فهم الرابط. الآن نبحث عن نسخ أو نتائج مناسبة في مصادر أخرى.</p><button class="primary-btn" id="smartFindAlternatives">ابحث عن محتوى مطابق ✦</button></div>';
   $('#smartFindAlternatives').onclick=async()=>{
