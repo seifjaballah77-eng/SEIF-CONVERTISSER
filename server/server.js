@@ -156,8 +156,9 @@ async function searchAppleMusic(term){
     return {kind:'music',title:x.trackName||'أغنية',artist:x.artistName||'فنان غير معروف',
       album:x.collectionName||'',thumbnail:x.artworkUrl100||null,duration:x.trackTimeMillis?Math.round(x.trackTimeMillis/1000):null,
       url,previewUrl:/^https:\/\/embed\.music\.apple\.com\//i.test(embedUrl)?embedUrl:null,
+      previewAudioUrl:/^https:\/\//i.test(x.previewUrl||'')?x.previewUrl:null,
       matchScore:smartMatchScore(term,candidate),platform:'Apple Music',downloadable:false,
-      note:'رابط ومعاينة Apple Music الرسمية؛ تنزيل الأغاني المحمية غير متاح من خدمة البث.'};
+      note:x.previewUrl?'استمع إلى المقطع التجريبي هنا. تنزيل الأغنية الكاملة غير متاح عبر Apple Music.':'رابط Apple Music الرسمي؛ لا يتوفر مقطع صوتي مباشر لهذه النتيجة.'};
   }).filter(x=>x.url);
   return {results};
 }
@@ -257,7 +258,7 @@ app.post('/api/smart/identify-audio',audioIdentifyUpload.single('file'),async(re
     if(!audio.length)throw new Error('لم أستطع استخراج صوت واضح من الملف.');
     const form=new FormData();
     form.append('api_token',process.env.AUDD_API_TOKEN);
-    form.append('return','apple_music,spotify,deezer');
+    form.append('return','apple_music,spotify');
     form.append('market','us');
     form.append('file',new Blob([audio],{type:'audio/mpeg'}),'seif-audio-clip.mp3');
     const upstream=await fetch('https://api.audd.io/',{method:'POST',body:form,signal:AbortSignal.timeout(30000)});
@@ -283,7 +284,6 @@ app.post('/api/smart/identify-audio',audioIdentifyUpload.single('file'),async(re
       songUrl:link(r.song_link),
       spotifyUrl:link(r.spotify?.external_urls?.spotify||r.spotify?.url),
       appleMusicUrl:link(r.apple_music?.url),
-      deezerUrl:link(r.deezer?.link||r.deezer?.url),
       artwork:link(r.spotify?.album?.images?.[0]?.url||r.apple_music?.artwork?.url||r.apple_music?.artwork_url)
     }});
   }catch(err){
