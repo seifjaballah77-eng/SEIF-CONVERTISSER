@@ -1,6 +1,6 @@
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-const platforms=['YouTube','YouTube Music','TikTok','Instagram','X (Twitter)','Facebook','Twitch','Dailymotion'];
-const tools=[['discover','⌕','البحث والاكتشاف','اكتشف المحتوى بالكلمات المفتاحية'],['fetch','↧','جلب الوسائط','تحليل الروابط وحفظها'],['batch','▤','المعالجة الجماعية','إدارة عدة روابط'],['images','▧','صور المنشورات','حفظ الصور المسموح بها'],['trim','✂','قص الفيديو','تحديد البداية والنهاية'],['audio','♫','استخراج الصوت','MP3 و WAV و M4A'],['convert','⇄','تحويل الصيغ','فيديو وصوت'],['compress','◫','ضغط الملفات','موازنة الجودة والحجم'],['gif','▣','صانع GIF','تحويل مقطع قصير']];
+const platforms=['Spotify','Apple Music','YouTube Music','YouTube','TikTok','PeerTube','Internet Archive'];
+const tools=[['discover','⌕','البحث والاكتشاف','اكتشف المحتوى بالكلمات المفتاحية'],['fetch','↧','تحليل الرابط','فهم الرابط والبحث عن بدائل'],['batch','▤','المعالجة الجماعية','إدارة عدة روابط'],['images','▧','صور المنشورات','حفظ الصور المسموح بها'],['trim','✂','قص الفيديو','تحديد البداية والنهاية'],['audio','♫','استخراج الصوت','MP3 و WAV و M4A'],['convert','⇄','تحويل الصيغ','فيديو وصوت'],['compress','◫','ضغط الملفات','موازنة الجودة والحجم'],['gif','▣','صانع GIF','تحويل مقطع قصير']];
 const pageNames={home:'الرئيسية',discover:'البحث والاكتشاف',fetch:'جلب الوسائط',batch:'المعالجة الجماعية',images:'صور المنشورات',trim:'قص الفيديو',audio:'استخراج الصوت',convert:'تحويل الصيغ',compress:'ضغط الملفات',gif:'صانع GIF',downloads:'مركز التنزيلات',history:'سجل الروابط',settings:'الإعدادات'};
 const KEY='seif-convertisser-history-v1',SET='seif-convertisser-settings-v1';let batch=[],downloads=[],trimObjectUrl=null;
 function toast(msg){const el=$('#toast');el.textContent=msg;el.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove('show'),2600)}
@@ -13,7 +13,7 @@ $$('[data-go]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.go)));
 $('#platformChips').innerHTML=platforms.map(p=>`<span class="chip">${p}</span>`).join('');
 $('#platformDirectory').innerHTML=platforms.map(p=>`<div class="platform-card"><b>${p}</b><small>فيديو · صور · منشورات · بث حسب دعم المنصة</small></div>`).join('');
 const options='<option value="auto">اكتشاف تلقائي</option>'+platforms.map(p=>`<option>${p}</option>`).join('');
-$('#searchPlatform').innerHTML='<option value="all">جميع المنصات</option>'+platforms.map(p=>`<option>${p}</option>`).join('');
+/* Platform selection is intentionally automatic in Smart Finder. */
 function readHistory(){try{return JSON.parse(localStorage.getItem(KEY)||'[]').filter(x=>Date.now()-x.time<30*864e5)}catch{return []}}
 function saveHistory(items){localStorage.setItem(KEY,JSON.stringify(items));updateCount()}
 function addHistory(url,platform='غير محددة',name=''){if(!url)return;let items=readHistory().filter(x=>x.url!==url);items.unshift({url,platform,name,time:Date.now()});saveHistory(items.slice(0,300));renderHistory()}
