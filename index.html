@@ -45,9 +45,9 @@
         <div class="section-heading tools-title"><div><h2>الأدوات</h2><p>كل أداة في مساحة مستقلة</p></div></div><div class="tool-grid" id="homeTools"></div>
         <div class="notice"><span>ⓘ</span><div><b>جاهز للاستخدام</b><p>الصق رابطاً في الأعلى. يفهم نوع الرابط أولاً، ثم يبحث عن نتائج مناسبة. التنزيل يظهر فقط عندما يثبت المصدر أن الملف متاح بترخيص يسمح به.</p></div></div>
       </section>
-      <section class="page" id="page-discover"><div class="page-head"><span class="eyebrow">DISCOVER</span><h1>SEIF SMART FINDER</h1><p>ابحث عن الأغاني في كتالوجات الموسيقى، وعن الفيديوهات في أرشيفات الفيديو. لا نخلط النوعين.</p></div>
-        <form id="searchForm" class="search-box"><span>⌕</span><input id="searchQuery" placeholder="ما الفيديو أو المنشور الذي تبحث عنه؟"><button class="primary-btn">بحث</button></form>
-        <div class="filter-row"><label>نوع المحتوى <select id="searchType"><option value="all">موسيقى وفيديو</option><option value="music">أغانٍ وموسيقى</option><option value="video">فيديوهات</option></select></label></div>
+      <section class="page" id="page-discover"><div class="page-head"><span class="eyebrow">DISCOVER</span><h1>ابحث عن أغنيتك</h1><p>اكتب اسم الأغنية أو الفنان. استمع للمعاينات داخل التطبيق، ونزّل المقاطع التي يسمح أصحابها بتنزيلها.</p></div>
+        <form id="searchForm" class="search-box"><span>⌕</span><input id="searchQuery" placeholder="اكتب اسم الأغنية أو الفنان — بالعربية أو بأي لغة..." autocomplete="off"><button class="primary-btn">بحث</button></form>
+        <div class="filter-row"><label>نوع المحتوى <select id="searchType"><option value="music" selected>الأغاني والموسيقى</option><option value="all">موسيقى وفيديو</option><option value="video">فيديوهات</option></select></label></div>
         <div id="searchState" class="empty-state"><div class="empty-icon">⌕</div><h3>اكتب ما تريد اكتشافه</h3><p>اختر نوع المحتوى أو الصق رابطه في الصفحة الرئيسية ليتم تحديده تلقائياً.</p></div><div id="searchResults" class="result-grid"></div>
       </section>
       <section class="page" id="page-fetch"><div class="page-head"><span class="eyebrow">AUTO MEDIA DOWNLOAD</span><h1>جلب الوسائط</h1><p>الصق رابطاً لتحليل نوع المحتوى والعثور على نتائج مشابهة. لا يبدأ التنزيل تلقائياً.</p></div><form id="fetchForm" class="panel form-stack"><label>رابط المحتوى<input id="fetchUrl" type="url" required placeholder="ألصق الرابط هنا..." dir="ltr"></label><button class="primary-btn">تحليل وبحث</button><div id="fetchFeedback" class="feedback"></div></form>
@@ -79,5 +79,5 @@
     </div>
     <footer>SEIF CONVERTISSER <span>صنع بيد سيف</span></footer>
   </main>
-</div><div class="toast" id="toast" role="status"></div><script src="app.js"></script>
+</div><div class="music-player-dock" id="musicPlayerDock" hidden><img id="musicDockArt" alt="" hidden><div class="music-dock-info"><b id="musicDockTitle">المشغل المصغر</b><small id="musicDockArtist">استماع داخل التطبيق</small></div><audio id="musicDockAudio" controls preload="none"></audio><button class="icon-btn" id="musicDockClose" type="button" aria-label="إغلاق المشغل">×</button></div><div class="toast" id="toast" role="status"></div><script src="app.js"></script>
 </body></html>
