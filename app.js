@@ -155,35 +155,26 @@ function identifyLink(url,label){
 }
 async function renderIdentifyMatch(match){
   const result=$('#identifyResult');result.hidden=false;
-  if(!match){result.innerHTML='<div class="identify-no-match"><div class="empty-icon">♫</div><b>لم نتعرف على الأغنية</b><p>جرّب مقطعاً أوضح مدته 8–12 ثانية، ويفضل أن تكون الموسيقى مسموعة دون كلام فوقها.</p></div>';return}
-  const art=match.artwork?'<img class="identify-art" src="'+esc(match.artwork)+'" alt="غلاف الألبوم" loading="lazy">':'<div class="identify-art identify-art-empty">♫</div>';
-  result.innerHTML='<div class="identify-match">'+art+'<div class="identify-match-info"><span class="eyebrow">بصمة الصوت الأقرب</span><h2>'+esc(match.title||'أغنية معروفة')+'</h2><b>'+esc(match.artist||'فنان غير معروف')+'</b><small>'+[match.album,match.releaseDate].filter(Boolean).map(esc).join(' · ')+'</small></div></div><div class="identify-candidates"><div class="identify-candidates-head"><b>أقرب النتائج المتاحة</b><span class="muted" id="identifyCandidateCount">جارٍ الفرز…</span></div><div id="identifyCandidateList"><div class="identify-loading">نبحث عن النسخ الأقرب ونرتبها لك…</div></div></div><p class="identify-download-note">نعرض هنا نتائج البحث من Spotify وApple Music فقط، مع روابط ومعاينات رسمية عند توفرها. لا نعرض نتائج من مصادر موسيقى أخرى.</p>';
+  if(!match){result.innerHTML='<div class="identify-no-match"><div class="empty-icon">♫</div><b>لم نتعرف على الأغنية</b><p>جرّب مقطعاً أوضح مدته 8–12 ثانية.</p></div>';return}
+  const art=match.artwork?'<img class="identify-art" src="'+esc(match.artwork)+'" alt="" loading="lazy">':'<div class="identify-art identify-art-empty">♫</div>';
+  result.innerHTML='<div class="identify-match">'+art+'<div class="identify-match-info"><span class="eyebrow">الأغنية التي تعرّفنا عليها</span><h2>'+esc(match.title||'أغنية معروفة')+'</h2><b>'+esc(match.artist||'فنان غير معروف')+'</b><small>'+[match.album,match.releaseDate].filter(Boolean).map(esc).join(' · ')+'</small></div></div><div class="identify-candidates"><div class="identify-candidates-head"><b>أقرب نسخة</b><span class="muted" id="identifyCandidateCount">جارٍ العثور عليها…</span></div><div id="identifyCandidateList"><div class="identify-loading">نبحث عن أقرب نسخة ونجهز الاستماع والتنزيل…</div></div></div>';
   const q=[match.title,match.artist].filter(Boolean).join(' ');
   try{
-    const response=await fetch(getBackend()+'/api/smart/search?q='+encodeURIComponent(q)+'&type=music');
-    const data=await response.json();if(!response.ok)throw new Error(data.error||'تعذر البحث عن النسخ.');
-    const rows=(data.results||[]).filter(r=>r&&r.kind==='music');
-    const tokens=v=>String(v||'').toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N} ]/gu,' ').split(/\s+/).filter(Boolean);
-    const target=tokens(q);
-    const score=r=>{
-      const title=tokens(r.title),artist=tokens(r.artist),all=new Set([...title,...artist]);
-      const overlap=target.filter(t=>all.has(t)).length/Math.max(1,target.length);
-      const exact=String(r.title||'').toLowerCase().includes(String(match.title||'').toLowerCase())?0.25:0;
-      return Math.max(Number(r.matchScore)||0,Math.min(100,Math.round((overlap+exact)*100)));
-    };
-    rows.forEach(r=>r._closestScore=score(r));
-    rows.sort((x,y)=>y._closestScore-x._closestScore);
-    const list=$('#identifyCandidateList');
-    if(!rows.length){list.innerHTML='<div class="identify-no-match"><b>لم نعثر على نسخ أخرى في المصادر المتاحة.</b></div>'}
-    else{
-      list.innerHTML=rows.slice(0,8).map(r=>{
-        const card=smartResultCard(r);
-        return card.replace('<article class="smart-card">','<article class="smart-card identify-ranked-card"><span class="identify-rank">قرب '+r._closestScore+'%</span>');
-      }).join('');
+    const response=await fetch(getBackend()+'/api/smart/youtube-song?q='+encodeURIComponent(q));
+    const data=await response.json();if(!response.ok)throw new Error(data.error||'تعذر العثور على النسخة.');
+    const best=data.match,list=$('#identifyCandidateList');
+    if(!best){
+      list.innerHTML='<div class="identify-no-match"><b>لم نعثر على نسخة مناسبة.</b><p>جرّب التعرف على مقطع آخر أوضح.</p></div>';
+      $('#identifyCandidateCount').textContent='لا توجد نتيجة';
+      return;
     }
-    $('#identifyCandidateCount').textContent=rows.length+' نتيجة مرتبة';
+    const image=best.thumbnail?'<img class="smart-thumb" src="'+esc(best.thumbnail)+'" alt="" loading="lazy">':'<div class="smart-thumb smart-thumb-empty">♫</div>';
+    const player=best.embedUrl?'<div class="smart-preview smart-music-preview"><iframe src="'+esc(best.embedUrl)+'" loading="lazy" allow="autoplay; encrypted-media; picture-in-picture" title="مشغل الأغنية"></iframe></div>':'';
+    const download='<a class="primary-btn smart-action" href="'+esc(getBackend()+best.downloadUrl)+'">تنزيل MP3 مباشرة ↓</a>';
+    list.innerHTML='<article class="smart-card identify-ranked-card">'+image+'<div class="smart-card-body"><b>'+esc(best.title||match.title)+'</b><small>'+esc(best.artist||match.artist||'')+'</small>'+player+'<div class="smart-card-actions">'+download+'</div></div></article>';
+    $('#identifyCandidateCount').textContent='أفضل تطابق';
   }catch(err){
-    $('#identifyCandidateCount').textContent='تعذر جلب النتائج';
+    $('#identifyCandidateCount').textContent='تعذر العثور على النسخة';
     $('#identifyCandidateList').innerHTML='<div class="identify-no-match">'+esc(err.message)+'</div>';
   }
 }
