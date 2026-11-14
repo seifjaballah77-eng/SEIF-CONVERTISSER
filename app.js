@@ -49,7 +49,7 @@ function renderMediaResult(url,data){
 }
 async function inspectMedia(url,statusEl=$('#mediaStatus')){
   if(inspectionTask&&inspectionTask.url===url)return inspectionTask.promise;
-  if(detect(url)==='YouTube'){
+  if(['YouTube','TikTok'].includes(detect(url))){
     const host=new URL(url).hostname.toLowerCase();
     const isMusic=host==='music.youtube.com';
     currentMedia={url,data:{platform:'YouTube',title:isMusic?'YouTube Music — عبر noTube':'YouTube — عبر noTube',mediaType:'video',partnerNoTube:true,formats:[{value:'partner-mp3',label:'MP3 — عبر noTube'},{value:'partner-mp4',label:'MP4 — عبر noTube (لصق الرابط)'}]}};
@@ -82,14 +82,16 @@ function downloadFilename(response){
 }
 async function downloadMedia(url,statusEl=$('#mediaStatus')){
   if(!validUrl(url)){setMediaStatus(statusEl,'أدخل رابطاً صحيحاً أولاً.','error');return}
-  if(detect(url)==='YouTube'){
+  if(['YouTube','TikTok'].includes(detect(url))){
+    const platform=detect(url);
     const quality=$('#mediaQuality')?.value||'partner-mp3';
     let source;
-    try{source=new URL(url)}catch{setMediaStatus(statusEl,'رابط YouTube غير صالح.','error');return}
+    try{source=new URL(url)}catch{setMediaStatus(statusEl,'الرابط غير صالح.','error');return}
     const host=source.hostname.toLowerCase();
     const isMusic=host==='music.youtube.com';
-    if(quality==='partner-mp3'&&!isMusic){
+    if(platform==='YouTube'&&quality==='partner-mp3'){
       let path=source.pathname,query=source.search;
+      if(isMusic){source.hostname='www.youtube.com';path=source.pathname;query=source.search}
       if(host==='youtu.be'){
         const videoId=source.pathname.split('/').filter(Boolean)[0];
         if(!videoId){setMediaStatus(statusEl,'تعذر قراءة معرّف فيديو YouTube.','error');return}
@@ -97,12 +99,12 @@ async function downloadMedia(url,statusEl=$('#mediaStatus')){
       }
       const partnerUrl='https://notube.net'+path+query;
       window.open(partnerUrl,'_blank','noopener,noreferrer');
-      setMediaStatus(statusEl,'فتحنا noTube لمعالجة MP3. أكمل التنزيل في صفحة الشريك؛ لا يُعاد الملف تلقائياً إلى التطبيق.','success');
+      setMediaStatus(statusEl,isMusic?'فتحنا noTube برابط YouTube المقابل لمحاولة تحويل الموسيقى إلى MP3. نجاحه يعتمد على دعم الرابط.':'فتحنا noTube لمعالجة MP3. أكمل التنزيل في صفحة الشريك.','success');
       return;
     }
     window.open('https://notube.net/en/youtube-app-349','_blank','noopener,noreferrer');
-    try{await navigator.clipboard.writeText(url);setMediaStatus(statusEl,isMusic?'فتحنا noTube. نسخنا رابط YouTube Music؛ الصقه هناك إذا كان المصدر مدعوماً.':'فتحنا noTube. نسخنا رابط YouTube؛ الصقه هناك واختر MP4.','success')}
-    catch{setMediaStatus(statusEl,'فتحنا noTube. انسخ الرابط من التطبيق والصقه في صفحة الشريك لاختيار MP4.','success')}
+    try{await navigator.clipboard.writeText(url);setMediaStatus(statusEl,platform==='TikTok'?'فتحنا noTube ونسخنا رابط TikTok. الصقه هناك واختر MP3 أو MP4.':isMusic?'فتحنا noTube ونسخنا رابط YouTube Music. الصقه هناك واختر الصيغة.':'فتحنا noTube ونسخنا رابط YouTube. الصقه هناك واختر MP4.','success')}
+    catch{setMediaStatus(statusEl,'فتحنا noTube. انسخ الرابط والصقه في صفحة الشريك لاختيار الصيغة.','success')}
     return;
   }
   if(!currentMedia||currentMedia.url!==url){const ok=await inspectMedia(url,statusEl);if(!ok)return}
