@@ -491,7 +491,7 @@ body.light .progress-track{background:#26314b18}
 .identify-ranked-card .smart-card-actions{margin-top:4px}
 
 /* In-app music mini player */
-.music-player-dock{position:fixed;z-index:30;left:22px;right:282px;bottom:16px;display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid var(--line);border-radius:16px;background:color-mix(in srgb,var(--panel) 94%,transparent);box-shadow:0 16px 48px #0008;backdrop-filter:blur(18px)}
+.music-player-dock{position:fixed;z-index:30;left:22px;right:282px;bottom:16px;display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid var(--line);border-radius:16px;background:var(--panel);background:color-mix(in srgb,var(--panel) 94%,transparent);box-shadow:0 16px 48px #0008;backdrop-filter:blur(18px)}
 .music-player-dock[hidden]{display:none}
 .music-player-dock>img{width:44px;height:44px;object-fit:cover;border-radius:10px}
 .music-dock-info{min-width:110px;flex:1;display:flex;flex-direction:column;gap:3px;overflow:hidden}
