@@ -67,16 +67,6 @@ async function getPartnerPreview(url,platform){
 }
 async function inspectMedia(url,statusEl=$('#mediaStatus')){
   if(inspectionTask&&inspectionTask.url===url)return inspectionTask.promise;
-  if(['YouTube','YouTube Music','TikTok'].includes(detect(url))){
-    const platform=detect(url);
-    setMediaStatus(statusEl,'جارٍ جلب معلومات الفيديو والصورة المصغّرة…','loading');
-    const preview=await getPartnerPreview(url,platform);
-    currentMedia={url,data:{...preview,partnerNoTube:true,formats:[{value:'partner-mp3',label:'صوت MP3'},{value:'partner-mp4',label:'فيديو MP4'}]}};
-    addHistory(url,platform,preview.title||'');
-    if(statusEl===$('#mediaStatus'))renderMediaResult(url,currentMedia.data);
-    setMediaStatus(statusEl,'تم التعرف على '+platform+' وإظهار معاينة الفيديو.','success');
-    return true;
-  }
   const base=getBackend();
   if(!base){setMediaStatus(statusEl,'تم التعرف على '+detect(url)+' من الرابط. لتنزيل الملف فعلياً يجب نشر خادم المعالجة وربطه من الإعدادات.','error');return false}
   const started=Date.now();
@@ -101,31 +91,6 @@ function downloadFilename(response){
 }
 async function downloadMedia(url,statusEl=$('#mediaStatus')){
   if(!validUrl(url)){setMediaStatus(statusEl,'أدخل رابطاً صحيحاً أولاً.','error');return}
-  if(['YouTube','YouTube Music','TikTok'].includes(detect(url))){
-    const platform=detect(url);
-    const quality=$('#mediaQuality')?.value||'partner-mp3';
-    let source;
-    try{source=new URL(url)}catch{setMediaStatus(statusEl,'الرابط غير صالح.','error');return}
-    const host=source.hostname.toLowerCase();
-    const isMusic=platform==='YouTube Music';
-    if((platform==='YouTube'||platform==='YouTube Music')&&quality==='partner-mp3'){
-      let path=source.pathname,query=source.search;
-      if(isMusic){source.hostname='www.youtube.com';path=source.pathname;query=source.search}
-      if(host==='youtu.be'){
-        const videoId=source.pathname.split('/').filter(Boolean)[0];
-        if(!videoId){setMediaStatus(statusEl,'تعذر قراءة معرّف فيديو YouTube.','error');return}
-        path='/watch';query='?v='+encodeURIComponent(videoId);
-      }
-      const partnerUrl='https://notube.net'+path+query;
-      window.open(partnerUrl,'_blank','noopener,noreferrer');
-      setMediaStatus(statusEl,isMusic?'فتحنا صفحة المعالجة برابط YouTube المقابل لمحاولة تحويل الموسيقى إلى MP3. نجاحه يعتمد على دعم الرابط.':'فتحنا صفحة المعالجة لمعالجة MP3. أكمل التنزيل في صفحة الشريك.','success');
-      return;
-    }
-    window.open('https://notube.net/en/youtube-app-349','_blank','noopener,noreferrer');
-    try{await navigator.clipboard.writeText(url);setMediaStatus(statusEl,platform==='TikTok'?'فتحنا صفحة المعالجة ونسخنا رابط TikTok. الصقه هناك واختر MP3 أو MP4.':isMusic?'فتحنا صفحة المعالجة ونسخنا رابط YouTube Music. الصقه هناك واختر الصيغة.':'فتحنا صفحة المعالجة ونسخنا رابط YouTube. الصقه هناك واختر MP4.','success')}
-    catch{setMediaStatus(statusEl,'فتحنا صفحة المعالجة. انسخ الرابط والصقه في صفحة الشريك لاختيار الصيغة.','success')}
-    return;
-  }
   if(!currentMedia||currentMedia.url!==url){const ok=await inspectMedia(url,statusEl);if(!ok)return}
   const base=getBackend();if(!base)return;
   const quality=$('#mediaQuality')?.value||'best';
