@@ -175,7 +175,7 @@ async function searchJamendoMusic(term){
       thumbnail:x.album_image||x.image||null,duration:Number(x.duration)||null,url:x.shareurl||'https://www.jamendo.com/',
       previewAudioUrl:/^https:\/\//i.test(x.audio||'')?x.audio:null,
       platform:'Jamendo',matchScore:smartMatchScore(term,candidate),downloadable:allowed,
-      downloadUrl:allowed&&/^\\d+$/.test(String(x.id||''))?'/api/smart/jamendo/'+encodeURIComponent(x.id)+'/download':null,
+      downloadUrl:allowed&&/^\d+$/.test(String(x.id||''))?'/api/smart/jamendo/'+encodeURIComponent(x.id)+'/download':null,
       note:allowed?'استمع إلى المعاينة داخل التطبيق. التنزيل MP3 متاح بإذن الفنان.':'يمكنك الاستماع إلى المعاينة؛ الفنان لم يسمح بتنزيل الملف الكامل.'};
   }).filter(x=>x.url);
   return {results};
@@ -184,18 +184,18 @@ app.get('/api/smart/jamendo/:trackId/download',async(req,res)=>{
   const trackId=String(req.params.trackId||'');
   const clientId=process.env.JAMENDO_CLIENT_ID;
   if(!clientId)return res.status(503).json({error:'بحث وتنزيل Jamendo يحتاج JAMENDO_CLIENT_ID في إعدادات Render.'});
-  if(!/^\\d{1,20}$/.test(trackId))return res.status(400).json({error:'معرّف الأغنية غير صالح.'});
+  if(!/^\d{1,20}$/.test(trackId))return res.status(400).json({error:'معرّف الأغنية غير صالح.'});
   try{
     const endpoint='https://api.jamendo.com/v3.0/tracks/?client_id='+encodeURIComponent(clientId)+'&format=json&id='+encodeURIComponent(trackId)+'&audioformat=mp32';
     const data=await smartJson(endpoint,15000);
     const track=(data.results||[])[0];
     if(!track||track.audiodownload_allowed!==true||!/^https:\/\//i.test(track.audiodownload||''))return res.status(403).json({error:'لم يمنح الفنان إذناً بتنزيل هذه الأغنية.'});
     const source=new URL(track.audiodownload);
-    if(source.protocol!=='https:'||!/(^|\\.)jamendo\\.com$/i.test(source.hostname))return res.status(502).json({error:'مصدر التنزيل غير موثوق.'});
+    if(source.protocol!=='https:'||!/(^|\.)jamendo\.com$/i.test(source.hostname))return res.status(502).json({error:'مصدر التنزيل غير موثوق.'});
     const upstream=await fetch(source,{redirect:'follow',signal:AbortSignal.timeout(120000)});
     if(!upstream.ok||!upstream.body)throw new Error('تعذر جلب ملف الأغنية من Jamendo.');
     const {Readable}=require('node:stream');
-    const safeName=String(track.name||'seif-music').replace(/[\\\\/:*?"<>|]+/g,' ').trim().slice(0,100)||'seif-music';
+    const safeName=String(track.name||'seif-music').replace(/[\\/:*?"<>|]+/g,' ').trim().slice(0,100)||'seif-music';
     res.setHeader('Content-Type',upstream.headers.get('content-type')||'audio/mpeg');
     res.setHeader('Content-Disposition',"attachment; filename*=UTF-8''"+encodeURIComponent(safeName+'.mp3'));
     if(upstream.headers.get('content-length'))res.setHeader('Content-Length',upstream.headers.get('content-length'));
