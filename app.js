@@ -215,7 +215,7 @@ document.addEventListener('click',e=>{
   const dock=$('#musicPlayerDock'),audio=$('#musicDockAudio');
   if(!dock||!audio)return;
   const src=play.dataset.playSrc;
-  if(!/^https:\\/\\//i.test(src))return;
+  if(!/^https?:\/\//i.test(src))return;
   $('#musicDockTitle').textContent=play.dataset.playTitle||'موسيقى';
   $('#musicDockArtist').textContent=play.dataset.playArtist||'';
   const art=$('#musicDockArt');
