@@ -133,7 +133,7 @@ async function searchSmartMusic(term){
   }).filter(x=>x.url).sort((a,b)=>b.matchScore-a.matchScore);
 }
 async function searchArchiveVideos(term){
-  const clean=term.replace(/[+\-!(){}\[\]^"~*?:\\/]/g,' ').replace(/\s+/g,' ').trim().slice(0,150);
+  const clean=term.replace(/[+\-!(){}\[\]^"~*?:]/g,' ').replace(/\s+/g,' ').trim().slice(0,150);
   if(!clean) return [];
   const q='mediatype:movies AND (title:"'+clean.replace(/"/g,'')+'" OR description:"'+clean.replace(/"/g,'')+'")';
   const endpoint='https://archive.org/advancedsearch.php?q='+encodeURIComponent(q)+'&fl[]=identifier&fl[]=title&fl[]=creator&fl[]=description&fl[]=date&rows=10&page=1&output=json';
