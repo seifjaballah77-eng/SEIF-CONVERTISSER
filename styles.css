@@ -395,3 +395,18 @@ body.light .media-result{background:linear-gradient(145deg,#fff,#f6f3fa);border-
   .downloader-panel .link-form button#quickDownloadBtn:before{display:none}
   .downloader-panel .platform-chips .chip{transition:none}
 }
+
+
+/* Live task progress: source preparation and transfer to the device */
+.progress-status{display:grid;grid-template-columns:minmax(0,1fr);gap:9px;align-items:center}
+.progress-copy{display:flex;justify-content:space-between;align-items:center;gap:12px;min-width:0}
+.progress-copy b{font-size:12px;color:#e7e8ff;font-weight:650}
+.progress-copy small{font-size:10px;color:#aeb9d2;text-align:left}
+.progress-track{height:7px;border-radius:20px;background:#ffffff18;overflow:hidden;display:block}
+.progress-track i{display:block;height:100%;width:0;border-radius:20px;background:linear-gradient(90deg,#4285ff,#a855f7,#ec4899);box-shadow:0 0 12px #9b7bff66;transition:width .25s ease}
+.progress-track i.indeterminate{width:38%;animation:progressSweep 1.35s ease-in-out infinite}
+@keyframes progressSweep{0%{transform:translateX(175%)}100%{transform:translateX(-280%)}}
+body.light .progress-copy b{color:#27324b}
+body.light .progress-copy small{color:#68758e}
+body.light .progress-track{background:#26314b18}
+@media(prefers-reduced-motion:reduce){.progress-track i.indeterminate{animation:none}}
