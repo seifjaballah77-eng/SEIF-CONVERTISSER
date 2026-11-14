@@ -17,6 +17,8 @@ potProvider.on('exit',(code)=>{potProviderReady=false;console.error('[bgutil-pot
 let potProviderReady=false;
 
 const app=express();
+// Render runs this service behind one trusted reverse proxy.
+app.set('trust proxy',1);
 const PORT=process.env.PORT||8080;
 const MAX_UPLOAD_MB=Number(process.env.MAX_UPLOAD_MB||500);
 const allowedOrigins=(process.env.ALLOWED_ORIGINS||'').split(',').map(x=>x.trim()).filter(Boolean);
