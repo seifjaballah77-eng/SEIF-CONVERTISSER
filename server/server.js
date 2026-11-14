@@ -116,21 +116,45 @@ function smartMatchScore(query,candidate){
   return Math.round(Math.min(99,coverage*78+precision*22));
 }
 
+async function searchArchiveAudio(term){
+  const clean=term.replace(/[+\\-!(){}\\[\\]^"~*?:]/g,' ').replace(/\\s+/g,' ').trim().slice(0,150);
+  if(!clean)return [];
+  const q='mediatype:audio AND (title:"'+clean.replace(/"/g,'')+'" OR creator:"'+clean.replace(/"/g,'')+'")';
+  const endpoint='https://archive.org/advancedsearch.php?q='+encodeURIComponent(q)+'&fl[]=identifier&fl[]=title&fl[]=creator&fl[]=description&rows=12&page=1&output=json';
+  const data=await smartJson(endpoint,18000);
+  const docs=data.response?.docs||[];
+  const rows=await Promise.all(docs.slice(0,10).map(async doc=>{
+    try{
+      const meta=await smartJson('https://archive.org/metadata/'+encodeURIComponent(doc.identifier),12000);
+      const files=(meta.files||[]).filter(f=>f.source==='original'&&/\\.(mp3|ogg|oga|flac|wav|m4a)$/i.test(f.name||''));
+      const file=files.sort((a,b)=>(Number(b.size)||0)-(Number(a.size)||0))[0];
+      const allowed=smartLicenseAllowed(meta);
+      const title=firstText(doc.title)||doc.identifier;
+      const artist=firstText(doc.creator);
+      return {kind:'music',title,artist,album:'',thumbnail:'https://archive.org/services/img/'+encodeURIComponent(doc.identifier),
+        duration:null,platform:'Internet Archive',url:'https://archive.org/details/'+encodeURIComponent(doc.identifier),
+        matchScore:smartMatchScore(clean,[title,artist].join(' ')),downloadable:!!file&&allowed,
+        downloadUrl:file&&allowed?'/api/smart/archive-audio/'+encodeURIComponent(doc.identifier)+'/'+encodeURIComponent(file.name):null,
+        license:firstText(meta.metadata?.licenseurl||meta.metadata?.rights)||'ترخيص غير محدد',
+        note:file&&allowed?'ملف صوتي أصلي متاح للتنزيل وفق الترخيص الظاهر.':'المصدر لا يثبت حالياً إذناً واضحاً بالتنزيل.'};
+    }catch{return null}
+  }));
+  return rows.filter(Boolean);
+}
 async function searchSmartMusic(term){
   const url='https://itunes.apple.com/search?media=music&entity=song&limit=12&country=US&term='+encodeURIComponent(term);
-  const data=await smartJson(url,14000);
-  return (data.results||[]).map(x=>{
+  const [data,archive]=await Promise.all([smartJson(url,14000),searchArchiveAudio(term).catch(()=>[])]);
+  const apple=(data.results||[]).map(x=>{
     const url=x.trackViewUrl||x.collectionViewUrl||'';
     const embedUrl=url.replace(/^https:\/\/music\.apple\.com\//i,'https://embed.music.apple.com/');
     const candidate=[x.trackName,x.artistName].filter(Boolean).join(' ');
-    return {
-      kind:'music',title:x.trackName||'أغنية',artist:x.artistName||'فنان غير معروف',
+    return {kind:'music',title:x.trackName||'أغنية',artist:x.artistName||'فنان غير معروف',
       album:x.collectionName||'',thumbnail:x.artworkUrl100||null,duration:x.trackTimeMillis?Math.round(x.trackTimeMillis/1000):null,
       url,embedUrl:/^https:\/\/embed\.music\.apple\.com\//i.test(embedUrl)?embedUrl:null,
       matchScore:smartMatchScore(term,candidate),platform:'Apple Music',downloadable:false,
-      note:'معاينة رسمية من Apple Music؛ التنزيل لا يتم من خدمات البث.'
-    };
-  }).filter(x=>x.url).sort((a,b)=>b.matchScore-a.matchScore);
+      note:'معاينة رسمية من Apple Music؛ استخدم التنزيل فقط من مصدر يتيحه قانونياً.'};
+  }).filter(x=>x.url);
+  return [...archive,...apple].sort((a,b)=>Number(b.matchScore)-Number(a.matchScore)).slice(0,16);
 }
 async function searchArchiveVideos(term){
   const clean=term.replace(/[+\-!(){}\[\]^"~*?:]/g,' ').replace(/\s+/g,' ').trim().slice(0,150);
@@ -263,6 +287,23 @@ app.get('/api/smart/search',async(req,res)=>{
   if(type==='all'||type==='video')tasks.push(searchSmartVideo(term).then(results=>({type:'video',results})).catch(error=>({type:'video',results:[],warning:'تعذر الوصول إلى أرشيف الفيديو الآن.'})));
   const sections=await Promise.all(tasks);
   res.json({ok:true,query:term,sections,results:sections.flatMap(x=>x.results),warnings:sections.filter(x=>x.warning).map(x=>x.warning)});
+});
+app.get('/api/smart/archive-audio/:identifier/:fileName',async(req,res)=>{
+  const id=String(req.params.identifier||''),name=String(req.params.fileName||'');
+  if(!/^[A-Za-z0-9._-]{1,80}$/.test(id)||!/^[A-Za-z0-9._ -]{1,180}\\.(mp3|ogg|oga|flac|wav|m4a)$/i.test(name))return res.status(400).json({error:'اسم الملف الصوتي غير صالح.'});
+  try{
+    const meta=await smartJson('https://archive.org/metadata/'+encodeURIComponent(id),15000);
+    if(!smartLicenseAllowed(meta))return res.status(403).json({error:'لم يثبت أن ترخيص هذا الملف يسمح بالتنزيل.'});
+    const file=(meta.files||[]).find(f=>f.name===name&&f.source==='original');
+    if(!file)return res.status(404).json({error:'الملف الصوتي غير موجود.'});
+    const upstream=await fetch('https://archive.org/download/'+encodeURIComponent(id)+'/'+encodeURIComponent(name),{redirect:'follow',signal:AbortSignal.timeout(120000)});
+    if(!upstream.ok||!upstream.body)throw new Error('تعذر جلب الملف الصوتي.');
+    const {Readable}=require('node:stream');
+    res.setHeader('Content-Type',upstream.headers.get('content-type')||'application/octet-stream');
+    res.setHeader('Content-Disposition',"attachment; filename*=UTF-8''"+encodeURIComponent(name));
+    if(upstream.headers.get('content-length'))res.setHeader('Content-Length',upstream.headers.get('content-length'));
+    Readable.fromWeb(upstream.body).pipe(res);
+  }catch(err){if(!res.headersSent)res.status(422).json({error:err.message||'تعذر تنزيل الملف الصوتي.'});}
 });
 app.get('/api/smart/archive/:identifier/:fileName',async(req,res)=>{
   const id=String(req.params.identifier||''),name=String(req.params.fileName||'');
