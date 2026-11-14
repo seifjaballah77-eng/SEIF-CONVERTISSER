@@ -1,5 +1,5 @@
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-const platforms=['YouTube','TikTok','Instagram','X (Twitter)','Facebook','Twitch','Dailymotion'];
+const platforms=['YouTube','YouTube Music','TikTok','Instagram','X (Twitter)','Facebook','Twitch','Dailymotion'];
 const tools=[['discover','⌕','البحث والاكتشاف','اكتشف المحتوى بالكلمات المفتاحية'],['fetch','↧','جلب الوسائط','تحليل الروابط وحفظها'],['batch','▤','المعالجة الجماعية','إدارة عدة روابط'],['images','▧','صور المنشورات','حفظ الصور المسموح بها'],['trim','✂','قص الفيديو','تحديد البداية والنهاية'],['audio','♫','استخراج الصوت','MP3 و WAV و M4A'],['convert','⇄','تحويل الصيغ','فيديو وصوت'],['compress','◫','ضغط الملفات','موازنة الجودة والحجم'],['gif','▣','صانع GIF','تحويل مقطع قصير']];
 const pageNames={home:'الرئيسية',discover:'البحث والاكتشاف',fetch:'جلب الوسائط',batch:'المعالجة الجماعية',images:'صور المنشورات',trim:'قص الفيديو',audio:'استخراج الصوت',convert:'تحويل الصيغ',compress:'ضغط الملفات',gif:'صانع GIF',downloads:'مركز التنزيلات',history:'سجل الروابط',settings:'الإعدادات'};
 const KEY='seif-convertisser-history-v1',SET='seif-convertisser-settings-v1';let batch=[],downloads=[],trimObjectUrl=null;
@@ -21,7 +21,7 @@ function updateCount(){$('#historyCount').textContent=readHistory().length}
 function renderHistory(){const items=readHistory();saveHistory(items);$('#historyList').innerHTML=items.length?items.map((x,i)=>`<div class="history-item"><div style="min-width:0;flex:1"><div class="url">${esc(x.url)}</div><div class="history-meta">${esc(x.platform)} · ${new Date(x.time).toLocaleString('ar')}</div></div><button class="mini-btn" data-copy="${i}">نسخ</button><button class="mini-btn" data-open="${i}">فتح</button><button class="mini-btn" data-remove="${i}">حذف</button></div>`).join(''):'<div class="panel empty-state"><div class="empty-icon">◷</div><h3>السجل فارغ</h3><p>ستظهر الروابط التي تضيفها هنا لمدة 30 يوماً.</p></div>';$$('[data-copy]').forEach(b=>b.onclick=()=>copy(readHistory()[+b.dataset.copy].url));$$('[data-open]').forEach(b=>b.onclick=()=>window.open(readHistory()[+b.dataset.open].url,'_blank','noopener'));$$('[data-remove]').forEach(b=>b.onclick=()=>{let a=readHistory();a.splice(+b.dataset.remove,1);saveHistory(a);renderHistory()})}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 async function copy(s){try{await navigator.clipboard.writeText(s);toast('تم نسخ الرابط')}catch{toast('تعذر النسخ؛ تحقق من إذن الحافظة')}}
-function detect(url){try{const h=new URL(url).hostname.toLowerCase();const has=d=>h===d||h.endsWith('.'+d);if(has('youtube.com')||has('youtu.be')||has('youtube-nocookie.com'))return'YouTube';if(has('tiktok.com'))return'TikTok';if(has('instagram.com'))return'Instagram';if(has('x.com')||has('twitter.com'))return'X (Twitter)';if(has('facebook.com')||has('fb.watch'))return'Facebook';if(has('twitch.tv'))return'Twitch';if(has('dailymotion.com')||has('dai.ly'))return'Dailymotion'}catch{}return'منصة غير معروفة'}
+function detect(url){try{const h=new URL(url).hostname.toLowerCase();const has=d=>h===d||h.endsWith('.'+d);if(h==='music.youtube.com')return'YouTube Music';if(has('youtube.com')||has('youtu.be')||has('youtube-nocookie.com'))return'YouTube';if(has('tiktok.com'))return'TikTok';if(has('instagram.com'))return'Instagram';if(has('x.com')||has('twitter.com'))return'X (Twitter)';if(has('facebook.com')||has('fb.watch'))return'Facebook';if(has('twitch.tv'))return'Twitch';if(has('dailymotion.com')||has('dai.ly'))return'Dailymotion'}catch{}return'منصة غير معروفة'}
 function validUrl(s){try{const u=new URL(s);return ['http:','https:'].includes(u.protocol)}catch{return false}}
 let currentMedia=null,quickInspectTimer=null,inspectionTask=null;
 function mediaTypeLabel(t){return t==='video'?'فيديو':t==='image'?'صورة':t==='audio'?'صوت':'وسائط'}
@@ -44,20 +44,37 @@ function renderMediaResult(url,data){
   const thumb=data.thumbnail&&/^https:\/\//i.test(data.thumbnail)?data.thumbnail:'';
   const platform=detect(url)==='منصة غير معروفة'?data.platform:detect(url);
   box.hidden=false;
-  box.innerHTML=`<div class="media-result-main">${thumb?`<img class="media-thumb" src="${esc(thumb)}" alt="">`:'<div class="media-thumb thumb-placeholder">▶</div>'}<div class="media-details"><div class="media-tags"><span class="chip">${esc(platform)}</span><span class="chip">${mediaTypeLabel(data.mediaType)}</span></div><b>${esc(data.title||'وسائط من المصدر')}</b><small>${data.duration?Math.floor(data.duration/60)+':'+String(Math.floor(data.duration%60)).padStart(2,'0'):'المعلومات المتاحة من المصدر'}</small></div></div><div class="media-download-row"><label>الجودة<select id="mediaQuality">${(data.formats||[{value:'best',label:'أفضل جودة متاحة'}]).map(x=>`<option value="${esc(x.value)}">${esc(x.label)}</option>`).join('')}${data.mediaType==='video'&&!data.partnerNoTube?'<option value="audio">استخراج الصوت MP3</option>':''}</select></label><button class="primary-btn" id="downloadMediaBtn">تنزيل الملف الآن ↓</button></div><p class="media-note">${data.partnerNoTube?'YouTube: تتم المعالجة عبر noTube. MP3 يفتح مسار الشريك مباشرة، وMP4 يتطلب لصق الرابط في صفحة الشريك.':'سيتم تنزيل أفضل نسخة متاحة من المصدر دون ادعاء جودة غير موجودة.'}</p>`;
+  box.innerHTML=`<div class="media-result-main">${thumb?`<img class="media-thumb" src="${esc(thumb)}" alt="الصورة المصغرة للفيديو" onerror="this.onerror=null;this.src=this.dataset.fallback||'';this.classList.toggle('thumb-failed',!this.src)" data-fallback="${esc(data.thumbnailFallback||'')}">`:'<div class="media-thumb thumb-placeholder">▶</div>'}<div class="media-details"><div class="media-tags"><span class="chip">${esc(platform)}</span><span class="chip">${mediaTypeLabel(data.mediaType)}</span></div><b>${esc(data.title||'وسائط من المصدر')}</b><small>${data.duration?Math.floor(data.duration/60)+':'+String(Math.floor(data.duration%60)).padStart(2,'0'):'معاينة الفيديو'}</small></div></div><div class="media-download-row"><label>الجودة<select id="mediaQuality">${(data.formats||[{value:'best',label:'أفضل جودة متاحة'}]).map(x=>`<option value="${esc(x.value)}">${esc(x.label)}</option>`).join('')}${data.mediaType==='video'&&!data.partnerNoTube?'<option value="audio">استخراج الصوت MP3</option>':''}</select></label><button class="primary-btn" id="downloadMediaBtn">تنزيل الملف الآن ↓</button></div><p class="media-note">${data.partnerNoTube?'اختر الصيغة المطلوبة، وسيتم فتح صفحة إكمال المعالجة.':'سيتم تنزيل أفضل نسخة متاحة من المصدر دون ادعاء جودة غير موجودة.'}</p>`;
   $('#downloadMediaBtn').onclick=()=>downloadMedia(url);
+}
+async function getPartnerPreview(url,platform){
+  const data={platform,title:platform==='TikTok'?'فيديو من TikTok':platform==='YouTube Music'?'مقطع من YouTube Music':'فيديو من YouTube',mediaType:'video'};
+  try{
+    const u=new URL(url);
+    if(platform==='YouTube'||platform==='YouTube Music'){
+      const id=u.searchParams.get('v')||(u.hostname==='youtu.be'?u.pathname.split('/').filter(Boolean)[0]:'');
+      if(id){
+        data.thumbnail='https://i.ytimg.com/vi/'+encodeURIComponent(id)+'/hqdefault.jpg';
+        data.thumbnailFallback='https://i.ytimg.com/vi/'+encodeURIComponent(id)+'/mqdefault.jpg';
+        try{const r=await fetch('https://www.youtube.com/oembed?format=json&url='+encodeURIComponent(url));if(r.ok){const meta=await r.json();data.title=meta.title||data.title;data.thumbnail=meta.thumbnail_url||data.thumbnail}}catch{}
+      }
+    }else if(platform==='TikTok'){
+      const r=await fetch('https://www.tiktok.com/oembed?url='+encodeURIComponent(url));
+      if(r.ok){const meta=await r.json();data.title=meta.title||data.title;data.thumbnail=meta.thumbnail_url||''}
+    }
+  }catch{}
+  return data;
 }
 async function inspectMedia(url,statusEl=$('#mediaStatus')){
   if(inspectionTask&&inspectionTask.url===url)return inspectionTask.promise;
-  if(['YouTube','TikTok'].includes(detect(url))){
-    const host=new URL(url).hostname.toLowerCase();
-    const isMusic=host==='music.youtube.com';
+  if(['YouTube','YouTube Music','TikTok'].includes(detect(url))){
     const platform=detect(url);
-    const title=platform==='TikTok'?'TikTok — عبر noTube':isMusic?'YouTube Music — عبر noTube':'YouTube — عبر noTube';
-    currentMedia={url,data:{platform,title,mediaType:'video',partnerNoTube:true,formats:[{value:'partner-mp3',label:'MP3 — عبر noTube'},{value:'partner-mp4',label:'MP4 — عبر noTube'}]}};
-    addHistory(url,platform,title);
+    setMediaStatus(statusEl,'جارٍ جلب معلومات الفيديو والصورة المصغّرة…','loading');
+    const preview=await getPartnerPreview(url,platform);
+    currentMedia={url,data:{...preview,partnerNoTube:true,formats:[{value:'partner-mp3',label:'صوت MP3'},{value:'partner-mp4',label:'فيديو MP4'}]}};
+    addHistory(url,platform,preview.title||'');
     if(statusEl===$('#mediaStatus'))renderMediaResult(url,currentMedia.data);
-    setMediaStatus(statusEl,platform==='TikTok'?'تم التعرف على TikTok. ستتم المعالجة عبر noTube.':isMusic?'تم التعرف على YouTube Music. سنجرب الرابط عبر noTube؛ التوافق يعتمد على قبول الموقع له.':'تم التعرف على YouTube. noTube هو مسار المعالجة لهذا المصدر.','success');
+    setMediaStatus(statusEl,'تم التعرف على '+platform+' وإظهار معاينة الفيديو.','success');
     return true;
   }
   const base=getBackend();
@@ -84,14 +101,14 @@ function downloadFilename(response){
 }
 async function downloadMedia(url,statusEl=$('#mediaStatus')){
   if(!validUrl(url)){setMediaStatus(statusEl,'أدخل رابطاً صحيحاً أولاً.','error');return}
-  if(['YouTube','TikTok'].includes(detect(url))){
+  if(['YouTube','YouTube Music','TikTok'].includes(detect(url))){
     const platform=detect(url);
     const quality=$('#mediaQuality')?.value||'partner-mp3';
     let source;
     try{source=new URL(url)}catch{setMediaStatus(statusEl,'الرابط غير صالح.','error');return}
     const host=source.hostname.toLowerCase();
-    const isMusic=host==='music.youtube.com';
-    if(platform==='YouTube'&&quality==='partner-mp3'){
+    const isMusic=platform==='YouTube Music';
+    if((platform==='YouTube'||platform==='YouTube Music')&&quality==='partner-mp3'){
       let path=source.pathname,query=source.search;
       if(isMusic){source.hostname='www.youtube.com';path=source.pathname;query=source.search}
       if(host==='youtu.be'){
@@ -101,12 +118,12 @@ async function downloadMedia(url,statusEl=$('#mediaStatus')){
       }
       const partnerUrl='https://notube.net'+path+query;
       window.open(partnerUrl,'_blank','noopener,noreferrer');
-      setMediaStatus(statusEl,isMusic?'فتحنا noTube برابط YouTube المقابل لمحاولة تحويل الموسيقى إلى MP3. نجاحه يعتمد على دعم الرابط.':'فتحنا noTube لمعالجة MP3. أكمل التنزيل في صفحة الشريك.','success');
+      setMediaStatus(statusEl,isMusic?'فتحنا صفحة المعالجة برابط YouTube المقابل لمحاولة تحويل الموسيقى إلى MP3. نجاحه يعتمد على دعم الرابط.':'فتحنا صفحة المعالجة لمعالجة MP3. أكمل التنزيل في صفحة الشريك.','success');
       return;
     }
     window.open('https://notube.net/en/youtube-app-349','_blank','noopener,noreferrer');
-    try{await navigator.clipboard.writeText(url);setMediaStatus(statusEl,platform==='TikTok'?'فتحنا noTube ونسخنا رابط TikTok. الصقه هناك واختر MP3 أو MP4.':isMusic?'فتحنا noTube ونسخنا رابط YouTube Music. الصقه هناك واختر الصيغة.':'فتحنا noTube ونسخنا رابط YouTube. الصقه هناك واختر MP4.','success')}
-    catch{setMediaStatus(statusEl,'فتحنا noTube. انسخ الرابط والصقه في صفحة الشريك لاختيار الصيغة.','success')}
+    try{await navigator.clipboard.writeText(url);setMediaStatus(statusEl,platform==='TikTok'?'فتحنا صفحة المعالجة ونسخنا رابط TikTok. الصقه هناك واختر MP3 أو MP4.':isMusic?'فتحنا صفحة المعالجة ونسخنا رابط YouTube Music. الصقه هناك واختر الصيغة.':'فتحنا صفحة المعالجة ونسخنا رابط YouTube. الصقه هناك واختر MP4.','success')}
+    catch{setMediaStatus(statusEl,'فتحنا صفحة المعالجة. انسخ الرابط والصقه في صفحة الشريك لاختيار الصيغة.','success')}
     return;
   }
   if(!currentMedia||currentMedia.url!==url){const ok=await inspectMedia(url,statusEl);if(!ok)return}
