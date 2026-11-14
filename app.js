@@ -91,7 +91,7 @@ async function downloadMedia(url,statusEl=$('#mediaStatus')){
       job=state;
       if(job.status==='failed')throw new Error(job.error||'فشل تجهيز الملف');
       if(job.status==='ready')break;
-      const pct=Number.isFinite(Number(job.percent))?Number(job.percent):null;
+      const pct=job.percent!==null&&job.percent!==undefined&&Number.isFinite(Number(job.percent))?Number(job.percent):null;
       const details=[elapsedLabel(Date.now()-started),job.speed?'السرعة '+job.speed:'',job.eta?'المتبقي '+job.eta:''].filter(Boolean).join(' · ');
       setProgressStatus(statusEl,job.stage||'جارٍ تجهيز الفيديو',pct,details);
     }
