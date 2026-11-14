@@ -63,13 +63,9 @@ function renderResolved(data){
   const appleEmbed=data.embedUrl&&/^https:\/\/embed\.music\.apple\.com\//.test(data.embedUrl);
   const embed=spotifyEmbed||appleEmbed?'<div class="smart-preview '+(appleEmbed?'apple-preview':'spotify-preview')+'"><iframe src="'+esc(data.embedUrl)+'" width="100%" height="'+(appleEmbed?'175':'152')+'" frameborder="0" allow="autoplay; encrypted-media; clipboard-write; fullscreen; picture-in-picture" loading="lazy" title="مشغل الموسيقى الرسمي"></iframe></div>':'';
   const thumb=data.thumbnail?'<img class="media-thumb" src="'+esc(data.thumbnail)+'" alt="">':'<div class="media-thumb thumb-placeholder">'+(isMusic?'♫':'▶')+'</div>';
-  box.innerHTML='<div class="media-result-main">'+thumb+'<div class="media-details"><div class="media-tags"><span class="chip">'+esc(data.platform)+'</span><span class="chip">'+(isMusic?'أغنية / موسيقى':'فيديو')+'</span></div><b>'+esc(data.title)+'</b><small>'+esc(data.artist||'تم استخراج معلومات المصدر')+'</small></div></div>'+embed+'<div class="smart-search-next"><p>تم فهم الرابط. الآن نبحث عن نسخ أو نتائج مناسبة في مصادر أخرى.</p><button class="primary-btn" id="smartFindAlternatives">ابحث عن محتوى مطابق ✦</button></div>';
-  $('#smartFindAlternatives').onclick=async()=>{
-    const btn=$('#smartFindAlternatives');btn.disabled=true;btn.textContent='جارٍ البحث…';
-    try{await smartSearch(data.query||data.title,isMusic?'music':'video','#searchResults','#searchState');go('discover');$('#searchQuery').value=data.query||data.title;$('#searchType').value=isMusic?'music':'video';}
-    catch(err){setMediaStatus($('#mediaStatus'),err.message,'error')}
-    finally{btn.disabled=false;btn.textContent='ابحث عن محتوى مطابق ✦'}
-  };
+  const downloadQuality=isMusic?'audio':'mp4';
+  const directDownload=getBackend()+'/api/media/download?url='+encodeURIComponent(data.url||data.originalUrl||'')+'&quality='+downloadQuality;
+  box.innerHTML='<div class="media-result-main">'+thumb+'<div class="media-details"><div class="media-tags"><span class="chip">'+esc(data.platform)+'</span><span class="chip">'+(isMusic?'أغنية / موسيقى':'فيديو')+'</span></div><b>'+esc(data.title)+'</b><small>'+esc(data.artist||'تم استخراج معلومات المصدر')+'</small></div></div>'+embed+'<div class="smart-search-next"><p>تم تحليل المحتوى. يمكنك الآن تنزيله مباشرة.</p><a class="primary-btn" id="smartDownloadResolved" href="'+esc(directDownload)+'">تنزيل ↓</a></div>';
 }
 async function runSmartLink(url){
   if(!validUrl(url))throw new Error('أدخل رابطاً صحيحاً يبدأ بـ https://.');
