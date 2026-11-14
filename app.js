@@ -26,6 +26,19 @@ function validUrl(s){try{const u=new URL(s);return ['http:','https:'].includes(u
 let currentMedia=null,quickInspectTimer=null,inspectionTask=null;
 function mediaTypeLabel(t){return t==='video'?'فيديو':t==='image'?'صورة':t==='audio'?'صوت':'وسائط'}
 function setMediaStatus(el,message,kind=''){if(!el)return;el.textContent=message;const loading=kind==='loading'||/^جارٍ|^تم تجهيز طلب التنزيل/.test(message);el.className='media-status '+kind+(loading?' is-loading':'');el.dataset.loader=/فحص|التعرف/.test(message)?'scan':/تنزيل|طلب التنزيل/.test(message)?'download':'generic'}
+function setProgressStatus(el,label,percent=null,detail=''){
+  if(!el)return;
+  el.className='media-status is-loading progress-status';
+  el.dataset.loader='download';
+  if(!el.querySelector('.progress-copy'))el.innerHTML='<div class="progress-copy"><b></b><small></small></div><div class="progress-track"><i></i></div>';
+  el.querySelector('.progress-copy b').textContent=label;
+  el.querySelector('.progress-copy small').textContent=detail;
+  const track=el.querySelector('.progress-track'),fill=track.querySelector('i');
+  if(percent===null||!Number.isFinite(Number(percent))){fill.classList.add('indeterminate');fill.style.width='38%';}
+  else{fill.classList.remove('indeterminate');fill.style.width=Math.max(0,Math.min(100,Number(percent)))+'%';}
+}
+function elapsedLabel(ms){const sec=Math.max(0,Math.floor(ms/1000));return 'الوقت المنقضي '+Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0')}
+function formatBytes(n){if(!Number.isFinite(n)||n<=0)return '—';const units=['B','KB','MB','GB'];let i=0;while(n>=1024&&i<units.length-1){n/=1024;i++}return n.toFixed(i?1:0)+' '+units[i]}
 function renderMediaResult(url,data){
   const box=$('#mediaResult');if(!box)return;
   const thumb=data.thumbnail&&/^https:\/\//i.test(data.thumbnail)?data.thumbnail:'';
@@ -38,7 +51,9 @@ async function inspectMedia(url,statusEl=$('#mediaStatus')){
   if(inspectionTask&&inspectionTask.url===url)return inspectionTask.promise;
   const base=getBackend();
   if(!base){setMediaStatus(statusEl,'تم التعرف على '+detect(url)+' من الرابط. لتنزيل الملف فعلياً يجب نشر خادم المعالجة وربطه من الإعدادات.','error');return false}
-  setMediaStatus(statusEl,'جارٍ التعرف على المنصة وفحص نوع المحتوى والجودات…','loading');
+  const started=Date.now();
+  setProgressStatus(statusEl,'جارٍ البحث عن معلومات الفيديو وفحصه',null,elapsedLabel(0)+' · يتم الاتصال بالمصدر');
+  const clock=setInterval(()=>setProgressStatus(statusEl,'جارٍ البحث عن معلومات الفيديو وفحصه',null,elapsedLabel(Date.now()-started)+' · قد تختلف المدة حسب المنصة'),1000);
   const promise=(async()=>{try{
     const response=await fetch(base+'/api/media/inspect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
     const data=await response.json();if(!response.ok)throw new Error(data.error||'تعذر تحليل الرابط');
@@ -46,7 +61,7 @@ async function inspectMedia(url,statusEl=$('#mediaStatus')){
     if(statusEl===$('#mediaStatus'))renderMediaResult(url,data);
     setMediaStatus(statusEl,'تم التعرف تلقائياً: '+(detect(url)==='منصة غير معروفة'?data.platform:detect(url))+' · '+mediaTypeLabel(data.mediaType)+'. أصبح الملف جاهزاً للتنزيل.','success');
     return true;
-  }catch(err){currentMedia=null;setMediaStatus(statusEl,err.message,'error');return false}})();
+  }catch(err){currentMedia=null;setMediaStatus(statusEl,err.message,'error');return false}finally{clearInterval(clock)}})();
   inspectionTask={url,promise};const result=await promise;inspectionTask=null;return result;
 }
 function downloadFilename(response){
@@ -62,29 +77,52 @@ async function downloadMedia(url,statusEl=$('#mediaStatus')){
   const base=getBackend();if(!base)return;
   const quality=$('#mediaQuality')?.value||'best';
   addHistory(url,detect(url),currentMedia?.data?.title||'');
-  setMediaStatus(statusEl,'جارٍ تجهيز الملف من المصدر…','loading');
+  const started=Date.now();
+  setProgressStatus(statusEl,'جارٍ تجهيز طلب التنزيل',null,elapsedLabel(0)+' · الاتصال بخادم المعالجة');
   try{
-    const response=await fetch(base+'/api/media/download?url='+encodeURIComponent(url)+'&quality='+encodeURIComponent(quality));
-    if(!response.ok){
-      let message='تعذر تنزيل الوسائط من المصدر.';
-      try{const data=await response.json();message=data.error||message}catch{}
-      throw new Error(message);
+    const create=await fetch(base+'/api/media/download-jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url,quality})});
+    const created=await create.json();if(!create.ok)throw new Error(created.error||'تعذر بدء التنزيل');
+    const jobId=created.jobId;if(!jobId)throw new Error('لم يُرجع الخادم رقم مهمة التنزيل.');
+    let job=null;
+    while(true){
+      await new Promise(resolve=>setTimeout(resolve,800));
+      const check=await fetch(base+'/api/media/download-jobs/'+encodeURIComponent(jobId));
+      const state=await check.json();if(!check.ok)throw new Error(state.error||'تعذر متابعة التنزيل');
+      job=state;
+      if(job.status==='failed')throw new Error(job.error||'فشل تجهيز الملف');
+      if(job.status==='ready')break;
+      const pct=Number.isFinite(Number(job.percent))?Number(job.percent):null;
+      const details=[elapsedLabel(Date.now()-started),job.speed?'السرعة '+job.speed:'',job.eta?'المتبقي '+job.eta:''].filter(Boolean).join(' · ');
+      setProgressStatus(statusEl,job.stage||'جارٍ تجهيز الفيديو',pct,details);
     }
-    const contentLength=Number(response.headers.get('Content-Length')||0);
-    if(contentLength>150*1024*1024){
-      if(response.body)await response.body.cancel();
-      const direct=document.createElement('a');direct.href=base+'/api/media/download?url='+encodeURIComponent(url)+'&quality='+encodeURIComponent(quality);direct.rel='noopener';document.body.appendChild(direct);direct.click();direct.remove();
-      setMediaStatus(statusEl,'الملف كبير؛ بدأ تنزيله مباشرة لتجنب تحميله كاملاً في ذاكرة المتصفح.','success');
+    const nameUrl=base+'/api/media/download-jobs/'+encodeURIComponent(jobId)+'/file';
+    if(Number(job.size)>150*1024*1024){
+      const a=document.createElement('a');a.href=nameUrl;a.rel='noopener';document.body.appendChild(a);a.click();a.remove();
+      setMediaStatus(statusEl,'اكتمل تجهيز '+formatBytes(job.size)+'، وبدأ التنزيل عبر مدير التنزيلات في المتصفح.','success');
       return;
     }
-    const blob=await response.blob();
+    setProgressStatus(statusEl,'جارٍ نقل الملف إلى جهازك',0,'اكتمل تجهيز الملف على الخادم · '+formatBytes(job.size));
+    const response=await fetch(nameUrl);
+    if(!response.ok){let message='تعذر نقل الملف إلى جهازك.';try{message=(await response.json()).error||message}catch{}throw new Error(message)}
+    const total=Number(response.headers.get('Content-Length')||job.size||0);
+    let received=0;const chunks=[];
+    if(response.body&&response.body.getReader){
+      const reader=response.body.getReader();
+      while(true){
+        const part=await reader.read();if(part.done)break;
+        chunks.push(part.value);received+=part.value.byteLength;
+        const pct=total?received/total*100:null;
+        setProgressStatus(statusEl,'جارٍ نقل الملف إلى جهازك',pct,[total?formatBytes(received)+' من '+formatBytes(total):formatBytes(received),elapsedLabel(Date.now()-started)].join(' · '));
+      }
+    }else{const blob=await response.blob();chunks.push(blob);received=blob.size}
+    const blob=new Blob(chunks,{type:response.headers.get('Content-Type')||'application/octet-stream'});
     if(!blob.size)throw new Error('عاد المصدر بملف فارغ. جرّب رابطاً آخر.');
     const name=downloadFilename(response);
     const objectUrl=URL.createObjectURL(blob);
     const a=document.createElement('a');a.href=objectUrl;a.download=name;a.rel='noopener';
     document.body.appendChild(a);a.click();a.remove();
     downloads.unshift({name,url:objectUrl,size:blob.size,time:Date.now()});renderDownloads();
-    setMediaStatus(statusEl,'اكتمل تجهيز الملف وبدأ تنزيله: '+name,'success');
+    setMediaStatus(statusEl,'اكتمل التنزيل وتجهيز الملف: '+name,'success');
   }catch(err){
     setMediaStatus(statusEl,err.message||'تعذر تنزيل الملف. تحقق من الرابط وحاول مجدداً.','error');
   }
