@@ -52,16 +52,16 @@ function jsonCookiesToNetscape(contents){
     if(!c||typeof c!=='object'||typeof c.name!=='string'||typeof c.value!=='string'||typeof c.domain!=='string')continue;
     const domain=c.domain.trim();
     const cookiePath=typeof c.path==='string'&&c.path.startsWith('/')?c.path:'/';
-    if(!domain||/[\\t\\r\\n]/.test(domain)||/[\\t\\r\\n]/.test(c.name)||/[\\t\\r\\n]/.test(c.value)||/[\\t\\r\\n]/.test(cookiePath))continue;
+    if(!domain||/[\t\r\n]/.test(domain)||/[\t\r\n]/.test(c.name)||/[\t\r\n]/.test(c.value)||/[\t\r\n]/.test(cookiePath))continue;
     const includeSubdomains=c.hostOnly===true?'FALSE':'TRUE';
     const secure=c.secure===true?'TRUE':'FALSE';
     const expires=c.session===true?0:Math.max(0,Math.floor(Number(c.expirationDate)||0));
     const httpOnly=c.httpOnly===true;
     const cookieDomain=(httpOnly?'#HttpOnly_':'')+domain;
-    lines.push([cookieDomain,includeSubdomains,cookiePath,secure,String(expires),c.name,c.value].join('\\t'));
+    lines.push([cookieDomain,includeSubdomains,cookiePath,secure,String(expires),c.name,c.value].join('\t'));
   }
   if(lines.length===1)throw new Error('لم نعثر على Cookies قابلة للتحويل داخل ملف JSON.');
-  return lines.join('\\n')+'\\n';
+  return lines.join('\n')+'\n';
 }
 function getYtDlpCookieArgs(){
   if(!ytCookiesPath){
