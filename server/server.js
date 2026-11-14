@@ -114,7 +114,7 @@ async function searchSmartMusic(term){
     };
   }).filter(x=>x.url).sort((a,b)=>b.matchScore-a.matchScore);
 }
-async function searchSmartVideo(term){
+async function searchArchiveVideos(term){
   const clean=term.replace(/[+\-!(){}\[\]^"~*?:\\/]/g,' ').replace(/\s+/g,' ').trim().slice(0,150);
   if(!clean) return [];
   const q='mediatype:movies AND (title:"'+clean.replace(/"/g,'')+'" OR description:"'+clean.replace(/"/g,'')+'")';
@@ -143,6 +143,42 @@ async function searchSmartVideo(term){
   }));
   return details.filter(Boolean).sort((a,b)=>b.matchScore-a.matchScore);
 }
+
+async function searchPeerTube(term){
+  const instances=['https://peertube.cpy.re','https://peertube2.cpy.re'];
+  const batches=await Promise.all(instances.map(async base=>{
+    try{
+      const data=await smartJson(base+'/api/v1/search/videos?search='+encodeURIComponent(term)+'&count=6&sort=-match&nsfw=false',14000);
+      return (data.data||[]).map(v=>{
+        const id=v.uuid||v.shortUUID||v.id;
+        const embedPath=v.embedPath||'';
+        const thumbnailPath=v.thumbnailPath||'';
+        const toAbsolute=p=>/^https?:\/\//i.test(p)?p:(p?base+p:null);
+        const title=String(v.name||v.title||'فيديو من PeerTube');
+        return {
+          kind:'video',title,artist:v.channel?.displayName||v.account?.displayName||'',
+          description:String(v.description||'').replace(/<[^>]*>/g,' ').slice(0,220),
+          matchScore:smartMatchScore(term,title),platform:'PeerTube · '+new URL(base).hostname,
+          thumbnail:toAbsolute(thumbnailPath),duration:Number(v.duration)||null,
+          url:v.url||base+'/videos/watch/'+id,
+          previewUrl:embedPath?toAbsolute(embedPath):(id?base+'/videos/embed/'+id:null),
+          downloadable:false,
+          note:'معاينة من PeerTube. التنزيل لا يظهر إلا عندما يمكن التحقق من إذن الناشر والترخيص.'
+        };
+      });
+    }catch{return []}
+  }));
+  const seen=new Set();
+  return batches.flat().filter(v=>{const k=v.url||v.title;if(seen.has(k))return false;seen.add(k);return true});
+}
+async function searchSmartVideo(term){
+  const [archive,peer]=await Promise.all([
+    searchArchiveVideos(term).catch(()=>[]),
+    searchPeerTube(term).catch(()=>[])
+  ]);
+  return [...archive,...peer].sort((a,b)=>b.matchScore-a.matchScore).slice(0,16);
+}
+
 app.get('/api/smart/search',async(req,res)=>{
   const term=String(req.query.q||'').trim().slice(0,180);
   const type=String(req.query.type||'all');
