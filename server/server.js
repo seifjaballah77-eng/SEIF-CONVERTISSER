@@ -141,20 +141,61 @@ async function searchArchiveAudio(term){
   }));
   return rows.filter(Boolean);
 }
-async function searchSmartMusic(term){
+let spotifyTokenCache={token:'',expiresAt:0};
+async function getSpotifyAccessToken(){
+  const id=process.env.SPOTIFY_CLIENT_ID,secret=process.env.SPOTIFY_CLIENT_SECRET;
+  if(!id||!secret)return null;
+  if(spotifyTokenCache.token&&spotifyTokenCache.expiresAt>Date.now()+60000)return spotifyTokenCache.token;
+  const auth=Buffer.from(id+':'+secret).toString('base64');
+  const response=await fetch('https://accounts.spotify.com/api/token',{method:'POST',headers:{Authorization:'Basic '+auth,'Content-Type':'application/x-www-form-urlencoded'},body:'grant_type=client_credentials',signal:AbortSignal.timeout(12000)});
+  if(!response.ok)throw new Error('تعذر الحصول على تصريح البحث من Spotify ('+response.status+').');
+  const data=await response.json();
+  if(!data.access_token)throw new Error('لم يرجع Spotify رمز بحث صالحاً.');
+  spotifyTokenCache={token:data.access_token,expiresAt:Date.now()+Math.max(60,Number(data.expires_in)||3600)*1000};
+  return spotifyTokenCache.token;
+}
+async function searchSpotifyMusic(term){
+  const token=await getSpotifyAccessToken();
+  if(!token)return {results:[],warning:'بحث Spotify يحتاج SPOTIFY_CLIENT_ID وSPOTIFY_CLIENT_SECRET في إعدادات Render.'};
+  const response=await fetch('https://api.spotify.com/v1/search?q='+encodeURIComponent(term)+'&type=track&limit=12&market=US',{headers:{Authorization:'Bearer '+token},signal:AbortSignal.timeout(15000)});
+  if(!response.ok)throw new Error('تعذر البحث في Spotify ('+response.status+').');
+  const data=await response.json();
+  const results=(data.tracks?.items||[]).map(x=>{
+    const url=x.external_urls?.spotify||'';
+    const candidate=[x.name,...(x.artists||[]).map(a=>a.name)].join(' ');
+    return {kind:'music',title:x.name||'أغنية',artist:(x.artists||[]).map(a=>a.name).join(', '),
+      album:x.album?.name||'',thumbnail:x.album?.images?.[0]?.url||null,duration:x.duration_ms?Math.round(x.duration_ms/1000):null,
+      url,previewUrl:x.id?'https://open.spotify.com/embed/track/'+encodeURIComponent(x.id):null,
+      matchScore:smartMatchScore(term,candidate),platform:'Spotify',downloadable:false,
+      note:'رابط ومشغل Spotify الرسمي. تنزيل الأغاني المحمية غير متاح من خلال Spotify.'};
+  }).filter(x=>x.url);
+  return {results};
+}
+async function searchAppleMusic(term){
   const url='https://itunes.apple.com/search?media=music&entity=song&limit=12&country=US&term='+encodeURIComponent(term);
-  const [data,archive]=await Promise.all([smartJson(url,14000),searchArchiveAudio(term).catch(()=>[])]);
-  const apple=(data.results||[]).map(x=>{
+  const data=await smartJson(url,14000);
+  const results=(data.results||[]).map(x=>{
     const url=x.trackViewUrl||x.collectionViewUrl||'';
     const embedUrl=url.replace(/^https:\/\/music\.apple\.com\//i,'https://embed.music.apple.com/');
     const candidate=[x.trackName,x.artistName].filter(Boolean).join(' ');
     return {kind:'music',title:x.trackName||'أغنية',artist:x.artistName||'فنان غير معروف',
       album:x.collectionName||'',thumbnail:x.artworkUrl100||null,duration:x.trackTimeMillis?Math.round(x.trackTimeMillis/1000):null,
-      url,embedUrl:/^https:\/\/embed\.music\.apple\.com\//i.test(embedUrl)?embedUrl:null,
+      url,previewUrl:/^https:\/\/embed\.music\.apple\.com\//i.test(embedUrl)?embedUrl:null,
       matchScore:smartMatchScore(term,candidate),platform:'Apple Music',downloadable:false,
-      note:'معاينة رسمية من Apple Music؛ استخدم التنزيل فقط من مصدر يتيحه قانونياً.'};
+      note:'رابط ومعاينة Apple Music الرسمية؛ تنزيل الأغاني المحمية غير متاح من خدمة البث.'};
   }).filter(x=>x.url);
-  return [...archive,...apple].sort((a,b)=>Number(b.matchScore)-Number(a.matchScore)).slice(0,16);
+  return {results};
+}
+async function searchSmartMusic(term){
+  const [spotify,apple,archive]=await Promise.all([
+    searchSpotifyMusic(term).catch(error=>({results:[],warning:error.message||'تعذر البحث في Spotify.'})),
+    searchAppleMusic(term).then(x=>({...x})).catch(error=>({results:[],warning:'تعذر الوصول إلى Apple Music الآن.'})),
+    searchArchiveAudio(term).then(results=>({results})).catch(()=>({results:[]}))
+  ]);
+  const results=[...spotify.results,...apple.results,...archive.results];
+  const seen=new Set();
+  return results.filter(x=>{const key=x.url||[x.title,x.artist,x.platform].join('|');if(seen.has(key))return false;seen.add(key);return true;})
+    .sort((a,b)=>Number(b.matchScore)-Number(a.matchScore)).slice(0,24);
 }
 async function searchArchiveVideos(term){
   const clean=term.replace(/[+\-!(){}\[\]^"~*?:]/g,' ').replace(/\s+/g,' ').trim().slice(0,150);
@@ -283,7 +324,7 @@ app.get('/api/smart/search',async(req,res)=>{
   if(term.length<2)return res.status(400).json({error:'اكتب كلمتين أو أكثر للبحث.'});
   if(!['all','music','video'].includes(type))return res.status(400).json({error:'نوع البحث غير صالح.'});
   const tasks=[];
-  if(type==='all'||type==='music')tasks.push(searchSmartMusic(term).then(results=>({type:'music',results})).catch(error=>({type:'music',results:[],warning:'تعذر الوصول إلى فهرس الموسيقى الآن.'})));
+  if(type==='all'||type==='music')tasks.push(searchSmartMusic(term).then(results=>({type:'music',results,warnings:[]})).catch(error=>({type:'music',results:[],warning:'تعذر الوصول إلى فهارس الموسيقى الآن.'})));
   if(type==='all'||type==='video')tasks.push(searchSmartVideo(term).then(results=>({type:'video',results})).catch(error=>({type:'video',results:[],warning:'تعذر الوصول إلى أرشيف الفيديو الآن.'})));
   const sections=await Promise.all(tasks);
   res.json({ok:true,query:term,sections,results:sections.flatMap(x=>x.results),warnings:sections.filter(x=>x.warning).map(x=>x.warning)});
