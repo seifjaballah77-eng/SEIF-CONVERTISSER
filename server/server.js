@@ -194,8 +194,9 @@ async function searchSmartMusic(term){
   ]);
   const results=[...spotify.results,...apple.results,...archive.results];
   const seen=new Set();
-  return results.filter(x=>{const key=x.url||[x.title,x.artist,x.platform].join('|');if(seen.has(key))return false;seen.add(key);return true;})
-    .sort((a,b)=>Number(b.matchScore)-Number(a.matchScore)).slice(0,24);
+  return {results:results.filter(x=>{const key=x.url||[x.title,x.artist,x.platform].join('|');if(seen.has(key))return false;seen.add(key);return true;})
+    .sort((a,b)=>Number(b.matchScore)-Number(a.matchScore)).slice(0,24),
+    warnings:[spotify.warning,apple.warning].filter(Boolean)};
 }
 async function searchArchiveVideos(term){
   const clean=term.replace(/[+\-!(){}\[\]^"~*?:]/g,' ').replace(/\s+/g,' ').trim().slice(0,150);
@@ -324,7 +325,7 @@ app.get('/api/smart/search',async(req,res)=>{
   if(term.length<2)return res.status(400).json({error:'اكتب كلمتين أو أكثر للبحث.'});
   if(!['all','music','video'].includes(type))return res.status(400).json({error:'نوع البحث غير صالح.'});
   const tasks=[];
-  if(type==='all'||type==='music')tasks.push(searchSmartMusic(term).then(results=>({type:'music',results,warnings:[]})).catch(error=>({type:'music',results:[],warning:'تعذر الوصول إلى فهارس الموسيقى الآن.'})));
+  if(type==='all'||type==='music')tasks.push(searchSmartMusic(term).then(data=>({type:'music',results:data.results,warnings:data.warnings})).catch(error=>({type:'music',results:[],warnings:['تعذر الوصول إلى فهارس الموسيقى الآن.']})));
   if(type==='all'||type==='video')tasks.push(searchSmartVideo(term).then(results=>({type:'video',results})).catch(error=>({type:'video',results:[],warning:'تعذر الوصول إلى أرشيف الفيديو الآن.'})));
   const sections=await Promise.all(tasks);
   res.json({ok:true,query:term,sections,results:sections.flatMap(x=>x.results),warnings:sections.filter(x=>x.warning).map(x=>x.warning)});
