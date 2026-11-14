@@ -66,8 +66,12 @@ function jsonCookiesToNetscape(contents){
 function getYtDlpCookieArgs(){
   if(!ytCookiesPath){
     const configured=process.env.YT_COOKIES_FILE;
-    const candidates=configured?[configured]:['/etc/secrets/youtube-cookies.txt','/etc/secrets/cookies.json.txt'];
-    let secretFile=candidates.find(file=>fs.existsSync(file));
+    // A stale/incorrect override must not disable Render's standard Secret File
+    // locations. Prefer the explicit path, then known mounts, then Base64.
+    const candidates=[configured,'/etc/secrets/youtube-cookies.txt','/etc/secrets/cookies.json.txt'].filter(Boolean);
+    const secretFile=[...new Set(candidates)].find(file=>{
+      try{return fs.statSync(file).isFile()&&fs.statSync(file).size>0;}catch{return false;}
+    });
     let contents='';
     if(secretFile){
       const stat=fs.statSync(secretFile);
