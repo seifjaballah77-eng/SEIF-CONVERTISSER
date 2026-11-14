@@ -44,11 +44,20 @@ function renderMediaResult(url,data){
   const thumb=data.thumbnail&&/^https:\/\//i.test(data.thumbnail)?data.thumbnail:'';
   const platform=detect(url)==='منصة غير معروفة'?data.platform:detect(url);
   box.hidden=false;
-  box.innerHTML=`<div class="media-result-main">${thumb?`<img class="media-thumb" src="${esc(thumb)}" alt="">`:'<div class="media-thumb thumb-placeholder">▶</div>'}<div class="media-details"><div class="media-tags"><span class="chip">${esc(platform)}</span><span class="chip">${mediaTypeLabel(data.mediaType)}</span></div><b>${esc(data.title||'وسائط من المصدر')}</b><small>${data.duration?Math.floor(data.duration/60)+':'+String(Math.floor(data.duration%60)).padStart(2,'0'):'المعلومات المتاحة من المصدر'}</small></div></div><div class="media-download-row"><label>الجودة<select id="mediaQuality">${(data.formats||[{value:'best',label:'أفضل جودة متاحة'}]).map(x=>`<option value="${esc(x.value)}">${esc(x.label)}</option>`).join('')}${data.mediaType==='video'?'<option value="audio">استخراج الصوت MP3</option>':''}</select></label><button class="primary-btn" id="downloadMediaBtn">تنزيل الملف الآن ↓</button></div><p class="media-note">سيتم تنزيل أفضل نسخة متاحة من المصدر دون ادعاء جودة غير موجودة.</p>`;
+  box.innerHTML=`<div class="media-result-main">${thumb?`<img class="media-thumb" src="${esc(thumb)}" alt="">`:'<div class="media-thumb thumb-placeholder">▶</div>'}<div class="media-details"><div class="media-tags"><span class="chip">${esc(platform)}</span><span class="chip">${mediaTypeLabel(data.mediaType)}</span></div><b>${esc(data.title||'وسائط من المصدر')}</b><small>${data.duration?Math.floor(data.duration/60)+':'+String(Math.floor(data.duration%60)).padStart(2,'0'):'المعلومات المتاحة من المصدر'}</small></div></div><div class="media-download-row"><label>الجودة<select id="mediaQuality">${(data.formats||[{value:'best',label:'أفضل جودة متاحة'}]).map(x=>`<option value="${esc(x.value)}">${esc(x.label)}</option>`).join('')}${data.mediaType==='video'&&!data.partnerNoTube?'<option value="audio">استخراج الصوت MP3</option>':''}</select></label><button class="primary-btn" id="downloadMediaBtn">تنزيل الملف الآن ↓</button></div><p class="media-note">سيتم تنزيل أفضل نسخة متاحة من المصدر دون ادعاء جودة غير موجودة.</p>`;
   $('#downloadMediaBtn').onclick=()=>downloadMedia(url);
 }
 async function inspectMedia(url,statusEl=$('#mediaStatus')){
   if(inspectionTask&&inspectionTask.url===url)return inspectionTask.promise;
+  if(detect(url)==='YouTube'){
+    const host=new URL(url).hostname.toLowerCase();
+    const isMusic=host==='music.youtube.com';
+    currentMedia={url,data:{platform:'YouTube',title:isMusic?'YouTube Music — عبر noTube':'YouTube — عبر noTube',mediaType:'video',partnerNoTube:true,formats:[{value:'partner-mp3',label:'MP3 — عبر noTube'},{value:'partner-mp4',label:'MP4 — عبر noTube (لصق الرابط)'}]}};
+    addHistory(url,'YouTube',currentMedia.data.title);
+    if(statusEl===$('#mediaStatus'))renderMediaResult(url,currentMedia.data);
+    setMediaStatus(statusEl,isMusic?'تم التعرف على YouTube Music. سنفتح noTube لتجربة الرابط يدوياً؛ التوافق غير مضمون.':'تم التعرف على YouTube. noTube هو مسار المعالجة لهذا المصدر فقط.','success');
+    return true;
+  }
   const base=getBackend();
   if(!base){setMediaStatus(statusEl,'تم التعرف على '+detect(url)+' من الرابط. لتنزيل الملف فعلياً يجب نشر خادم المعالجة وربطه من الإعدادات.','error');return false}
   const started=Date.now();
@@ -73,6 +82,29 @@ function downloadFilename(response){
 }
 async function downloadMedia(url,statusEl=$('#mediaStatus')){
   if(!validUrl(url)){setMediaStatus(statusEl,'أدخل رابطاً صحيحاً أولاً.','error');return}
+  if(detect(url)==='YouTube'){
+    const quality=$('#mediaQuality')?.value||'partner-mp3';
+    let source;
+    try{source=new URL(url)}catch{setMediaStatus(statusEl,'رابط YouTube غير صالح.','error');return}
+    const host=source.hostname.toLowerCase();
+    const isMusic=host==='music.youtube.com';
+    if(quality==='partner-mp3'&&!isMusic){
+      let path=source.pathname,query=source.search;
+      if(host==='youtu.be'){
+        const videoId=source.pathname.split('/').filter(Boolean)[0];
+        if(!videoId){setMediaStatus(statusEl,'تعذر قراءة معرّف فيديو YouTube.','error');return}
+        path='/watch';query='?v='+encodeURIComponent(videoId);
+      }
+      const partnerUrl='https://notube.net'+path+query;
+      window.open(partnerUrl,'_blank','noopener,noreferrer');
+      setMediaStatus(statusEl,'فتحنا noTube لمعالجة MP3. أكمل التنزيل في صفحة الشريك؛ لا يُعاد الملف تلقائياً إلى التطبيق.','success');
+      return;
+    }
+    window.open('https://notube.net/en/youtube-app-349','_blank','noopener,noreferrer');
+    try{await navigator.clipboard.writeText(url);setMediaStatus(statusEl,isMusic?'فتحنا noTube. نسخنا رابط YouTube Music؛ الصقه هناك إذا كان المصدر مدعوماً.':'فتحنا noTube. نسخنا رابط YouTube؛ الصقه هناك واختر MP4.','success')}
+    catch{setMediaStatus(statusEl,'فتحنا noTube. انسخ الرابط من التطبيق والصقه في صفحة الشريك لاختيار MP4.','success')}
+    return;
+  }
   if(!currentMedia||currentMedia.url!==url){const ok=await inspectMedia(url,statusEl);if(!ok)return}
   const base=getBackend();if(!base)return;
   const quality=$('#mediaQuality')?.value||'best';
