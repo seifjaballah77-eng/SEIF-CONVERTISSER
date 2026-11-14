@@ -29,7 +29,131 @@ app.use('/api/',rateLimit({windowMs:60_000,limit:30,standardHeaders:true,legacyH
 const upload=multer({storage:multer.memoryStorage(),limits:{fileSize:MAX_UPLOAD_MB*1024*1024,files:1}});
 
 app.get('/health',(req,res)=>res.json({ok:true,service:'SEIF CONVERTISSER API',ffmpeg:'configured-at-runtime',youtubePoTokenProvider:potProviderReady?'ready':'unavailable'}));
-app.get('/api/search',(req,res)=>res.status(501).json({error:'Search connectors are not configured. Add approved platform search providers before enabling live results.'}));
+
+// Smart Finder: identify a pasted source, then search a suitable catalog.
+function smartSafeUrl(raw){
+  let u;try{u=new URL(raw)}catch{throw new Error('الرابط غير صالح.')}
+  if(!['http:','https:'].includes(u.protocol)||u.username||u.password)throw new Error('أدخل رابط HTTP أو HTTPS صالحاً دون بيانات دخول.');
+  const h=u.hostname.toLowerCase();
+  const allowed=['youtube.com','youtu.be','youtube-nocookie.com','tiktok.com','instagram.com','x.com','twitter.com','facebook.com','fb.watch','twitch.tv','dailymotion.com','dai.ly','spotify.com','spotify.link','music.apple.com','soundcloud.com','vimeo.com'];
+  if(!allowed.some(d=>h===d||h.endsWith('.'+d)))throw new Error('هذا المصدر غير مدعوم للتحليل حالياً.');
+  return u;
+}
+async function smartJson(url,timeout=14000){
+  const r=await fetch(url,{headers:{'User-Agent':'SEIF-SMART-FINDER/1.0'},signal:AbortSignal.timeout(timeout)});
+  if(!r.ok)throw new Error('المصدر أعاد استجابة غير متاحة ('+r.status+').');
+  return r.json();
+}
+function firstText(v){return Array.isArray(v)?String(v[0]||''):String(v||'')}
+function smartLicenseAllowed(meta){
+  const m=meta.metadata||{};
+  const license=firstText(m.licenseurl||m.license_url).toLowerCase();
+  const rights=firstText(m.rights).toLowerCase();
+  return /creativecommons\.org\/(licenses|publicdomain)/.test(license)||/public domain|creative commons|cc0|cc by([ -]|$)/i.test(rights);
+}
+app.post('/api/smart/resolve',async(req,res)=>{
+  try{
+    const u=smartSafeUrl(req.body&&req.body.url);
+    const host=u.hostname.toLowerCase();
+    const isSpotify=host==='spotify.com'||host.endsWith('.spotify.com')||host==='spotify.link';
+    const isMusic= isSpotify || host==='music.youtube.com' || host==='soundcloud.com' || host.endsWith('.soundcloud.com') || host==='music.apple.com';
+    let title='',thumbnail=null,embedUrl=null,artist='',duration=null,platform=host.replace(/^www\./,'');
+    if(isSpotify){
+      const meta=await smartJson('https://open.spotify.com/oembed?url='+encodeURIComponent(u.toString()));
+      title=meta.title||'محتوى Spotify';
+      thumbnail=meta.thumbnail_url||null;
+      const src=String(meta.html||'').match(/src=["']([^"']+)["']/i)?.[1];
+      if(src&&/^https:\/\/open\.spotify\.com\/embed\//i.test(src))embedUrl=src;
+      else{
+        const m=u.pathname.match(/^\/(track|album|playlist|artist|episode|show)\/([A-Za-z0-9]+)/);
+        if(m)embedUrl='https://open.spotify.com/embed/'+m[1]+'/'+m[2];
+      }
+      const bits=title.split(/\s+[·–—]\s+/);
+      if(bits.length>1){title=bits[0];artist=bits.slice(1).join(' · ')}
+    }else if(host==='music.youtube.com'){
+      const raw=await runYtDlp(['--dump-single-json','--skip-download','--no-warnings','--no-progress','--no-playlist',u.toString()],{timeoutMs:18000,maxOutput:500000});
+      const info=JSON.parse(raw);title=info.track||info.title||info.fulltitle||'';artist=info.artist||info.artists?.join(', ')||info.uploader||'';thumbnail=info.thumbnail||null;duration=Number(info.duration)||null;
+    }else if(host==='youtube.com'||host==='youtu.be'||host.endsWith('.youtube.com')){
+      const meta=await smartJson('https://www.youtube.com/oembed?format=json&url='+encodeURIComponent(u.toString()));
+      title=meta.title||'فيديو من YouTube';thumbnail=meta.thumbnail_url||null;
+    }else if(host==='tiktok.com'||host.endsWith('.tiktok.com')){
+      const meta=await smartJson('https://www.tiktok.com/oembed?url='+encodeURIComponent(u.toString()));
+      title=meta.title||'فيديو من TikTok';thumbnail=meta.thumbnail_url||null;
+    }else{
+      const raw=await runYtDlp(['--dump-single-json','--skip-download','--no-warnings','--no-progress','--no-playlist',u.toString()],{timeoutMs:18000,maxOutput:500000});
+      const info=JSON.parse(raw);title=info.title||info.fulltitle||'';artist=info.artist||info.uploader||'';thumbnail=info.thumbnail||null;duration=Number(info.duration)||null;
+    }
+    if(!title)throw new Error('لم أستطع استخراج عنوان واضح من الرابط. جرّب لصق رابط المحتوى الأصلي.');
+    res.json({ok:true,mediaType:isMusic?'music':'video',platform,title,artist,thumbnail,duration,sourceUrl:u.toString(),embedUrl,query:[title,artist].filter(Boolean).join(' ')});
+  }catch(err){res.status(422).json({error:err.message||'تعذر فهم الرابط.'});}
+});
+async function searchSmartMusic(term){
+  const url='https://itunes.apple.com/search?media=music&entity=song&limit=12&country=US&term='+encodeURIComponent(term);
+  const data=await smartJson(url,14000);
+  return (data.results||[]).map(x=>({
+    kind:'music',title:x.trackName||'أغنية',artist:x.artistName||'فنان غير معروف',
+    album:x.collectionName||'',thumbnail:x.artworkUrl100||null,duration:x.trackTimeMillis?Math.round(x.trackTimeMillis/1000):null,
+    url:x.trackViewUrl||x.collectionViewUrl||'',platform:'Apple Music',downloadable:false,
+    note:'التشغيل والشراء من المتجر الرسمي؛ لا نوفر استخراج MP3 من خدمات البث.'
+  })).filter(x=>x.url);
+}
+async function searchSmartVideo(term){
+  const clean=term.replace(/[+\-!(){}\[\]^"~*?:\\/]/g,' ').replace(/\s+/g,' ').trim().slice(0,150);
+  if(!clean) return [];
+  const q='mediatype:movies AND (title:"'+clean.replace(/"/g,'')+'" OR description:"'+clean.replace(/"/g,'')+'")';
+  const endpoint='https://archive.org/advancedsearch.php?q='+encodeURIComponent(q)+'&fl[]=identifier&fl[]=title&fl[]=creator&fl[]=description&fl[]=date&rows=10&page=1&output=json';
+  const data=await smartJson(endpoint,18000);
+  const docs=data.response?.docs||[];
+  const details=await Promise.all(docs.slice(0,8).map(async doc=>{
+    try{
+      const meta=await smartJson('https://archive.org/metadata/'+encodeURIComponent(doc.identifier),12000);
+      const files=(meta.files||[]).filter(f=>f.source==='original'&&/\.(mp4|webm|m4v|mov|mpeg|mpg|ogv)$/i.test(f.name||''));
+      const file=files.sort((a,b)=>(Number(b.size)||0)-(Number(a.size)||0))[0];
+      const allowed=smartLicenseAllowed(meta);
+      return {
+        kind:'video',title:firstText(doc.title)||doc.identifier,artist:firstText(doc.creator),
+        description:firstText(doc.description).replace(/<[^>]*>/g,' ').slice(0,240),
+        thumbnail:'https://archive.org/services/img/'+encodeURIComponent(doc.identifier),
+        duration:null,platform:'Internet Archive',url:'https://archive.org/details/'+encodeURIComponent(doc.identifier),
+        previewUrl:'https://archive.org/embed/'+encodeURIComponent(doc.identifier),
+        downloadable:!!file&&allowed,
+        downloadUrl:file&&allowed?'/api/smart/archive/'+encodeURIComponent(doc.identifier)+'/'+encodeURIComponent(file.name):null,
+        license:firstText(meta.metadata?.licenseurl||meta.metadata?.rights)||'ترخيص غير محدد',
+        note:file&&allowed?'يتوفر ملف أصلي مع ترخيص يسمح بإعادة الاستخدام.': 'المعاينة متاحة؛ لم نتحقق من ترخيص يسمح بالتنزيل.'
+      };
+    }catch{return null}
+  }));
+  return details.filter(Boolean);
+}
+app.get('/api/smart/search',async(req,res)=>{
+  const term=String(req.query.q||'').trim().slice(0,180);
+  const type=String(req.query.type||'all');
+  if(term.length<2)return res.status(400).json({error:'اكتب كلمتين أو أكثر للبحث.'});
+  if(!['all','music','video'].includes(type))return res.status(400).json({error:'نوع البحث غير صالح.'});
+  const tasks=[];
+  if(type==='all'||type==='music')tasks.push(searchSmartMusic(term).then(results=>({type:'music',results})).catch(error=>({type:'music',results:[],warning:'تعذر الوصول إلى فهرس الموسيقى الآن.'})));
+  if(type==='all'||type==='video')tasks.push(searchSmartVideo(term).then(results=>({type:'video',results})).catch(error=>({type:'video',results:[],warning:'تعذر الوصول إلى أرشيف الفيديو الآن.'})));
+  const sections=await Promise.all(tasks);
+  res.json({ok:true,query:term,sections,results:sections.flatMap(x=>x.results),warnings:sections.filter(x=>x.warning).map(x=>x.warning)});
+});
+app.get('/api/smart/archive/:identifier/:fileName',async(req,res)=>{
+  const id=String(req.params.identifier||''),name=String(req.params.fileName||'');
+  if(!/^[A-Za-z0-9._-]{1,80}$/.test(id)||!/^[A-Za-z0-9._ -]{1,180}\.(mp4|webm|m4v|mov|mpeg|mpg|ogv)$/i.test(name))return res.status(400).json({error:'اسم الملف غير صالح.'});
+  try{
+    const meta=await smartJson('https://archive.org/metadata/'+encodeURIComponent(id),15000);
+    if(!smartLicenseAllowed(meta))return res.status(403).json({error:'لم يثبت أن ترخيص هذا الملف يسمح بالتنزيل.'});
+    const file=(meta.files||[]).find(f=>f.name===name&&f.source==='original');
+    if(!file)return res.status(404).json({error:'الملف غير موجود ضمن العنصر المحدد.'});
+    const upstream=await fetch('https://archive.org/download/'+encodeURIComponent(id)+'/'+encodeURIComponent(name),{redirect:'follow',signal:AbortSignal.timeout(120000)});
+    if(!upstream.ok||!upstream.body)throw new Error('تعذر جلب الملف من الأرشيف.');
+    const {Readable}=require('node:stream');
+    res.setHeader('Content-Type',upstream.headers.get('content-type')||'application/octet-stream');
+    res.setHeader('Content-Disposition',"attachment; filename*=UTF-8''"+encodeURIComponent(name));
+    if(upstream.headers.get('content-length'))res.setHeader('Content-Length',upstream.headers.get('content-length'));
+    Readable.fromWeb(upstream.body).pipe(res);
+  }catch(err){if(!res.headersSent)res.status(422).json({error:err.message||'تعذر تنزيل الملف.'});}
+});
+
 
 const supportedHosts=['youtube.com','youtu.be','youtube-nocookie.com','tiktok.com','instagram.com','x.com','twitter.com','facebook.com','fb.watch','twitch.tv','dailymotion.com','dai.ly'];
 function checkedMediaUrl(raw){
