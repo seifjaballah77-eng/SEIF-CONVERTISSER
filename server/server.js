@@ -117,7 +117,7 @@ function smartMatchScore(query,candidate){
 }
 
 async function searchArchiveAudio(term){
-  const clean=term.replace(/[+\\-!(){}\\[\\]^"~*?:]/g,' ').replace(/\\s+/g,' ').trim().slice(0,150);
+  const clean=term.replace(/[+\-!(){}\[\]^"~*?:]/g,' ').replace(/\s+/g,' ').trim().slice(0,150);
   if(!clean)return [];
   const q='mediatype:audio AND (title:"'+clean.replace(/"/g,'')+'" OR creator:"'+clean.replace(/"/g,'')+'")';
   const endpoint='https://archive.org/advancedsearch.php?q='+encodeURIComponent(q)+'&fl[]=identifier&fl[]=title&fl[]=creator&fl[]=description&rows=12&page=1&output=json';
@@ -126,7 +126,7 @@ async function searchArchiveAudio(term){
   const rows=await Promise.all(docs.slice(0,10).map(async doc=>{
     try{
       const meta=await smartJson('https://archive.org/metadata/'+encodeURIComponent(doc.identifier),12000);
-      const files=(meta.files||[]).filter(f=>f.source==='original'&&/\\.(mp3|ogg|oga|flac|wav|m4a)$/i.test(f.name||''));
+      const files=(meta.files||[]).filter(f=>f.source==='original'&&/\.(mp3|ogg|oga|flac|wav|m4a)$/i.test(f.name||''));
       const file=files.sort((a,b)=>(Number(b.size)||0)-(Number(a.size)||0))[0];
       const allowed=smartLicenseAllowed(meta);
       const title=firstText(doc.title)||doc.identifier;
