@@ -440,3 +440,5 @@ body.light .progress-track{background:#26314b18}
 @media(max-width:760px){#searchResults{grid-template-columns:1fr}.smart-card{grid-template-columns:92px minmax(0,1fr);gap:10px;padding:10px}.smart-thumb{width:92px;height:92px}.smart-search-next{align-items:stretch}.smart-search-next button{width:100%}}
 
 .apple-preview iframe{height:175px}
+
+#page-discover .filter-row{grid-template-columns:minmax(0,360px)}
