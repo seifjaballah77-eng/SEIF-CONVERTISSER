@@ -294,6 +294,37 @@ app.post('/api/smart/identify-audio',audioIdentifyUpload.single('file'),async(re
   }
 });
 
+async function findClosestYouTubeSong(term){
+  const query=String(term||'').trim().replace(/[\\r\\n]+/g,' ').slice(0,160);
+  if(query.length<2)throw new Error('اسم الأغنية غير كافٍ للبحث.');
+  const raw=await runYtDlp(['--dump-single-json','--skip-download','--no-warnings','--no-progress','ytsearch5:'+query],{timeoutMs:45000,maxOutput:700000});
+  const payload=JSON.parse(raw);
+  const entries=Array.isArray(payload.entries)?payload.entries.filter(Boolean):[payload];
+  const rows=entries.map(item=>{
+    const id=String(item.id||'');
+    const url=item.webpage_url||item.original_url||(id?'https://www.youtube.com/watch?v='+encodeURIComponent(id):'');
+    if(!/^https:\\/\\/(www\\.)?(youtube\\.com|youtu\\.be)\\//i.test(url))return null;
+    const title=String(item.title||'');
+    const artist=String(item.artist||item.uploader||item.channel||'');
+    return {title,artist,url,thumbnail:item.thumbnail||item.thumbnails?.[0]?.url||null,duration:Number(item.duration)||null,matchScore:smartMatchScore(query,[title,artist].join(' '))};
+  }).filter(Boolean).sort((a,b)=>b.matchScore-a.matchScore);
+  if(!rows.length) return null;
+  const best=rows[0];
+  const videoId=new URL(best.url).searchParams.get('v')||(new URL(best.url).hostname==='youtu.be'?new URL(best.url).pathname.slice(1):'');
+  return {...best,embedUrl:videoId?'https://www.youtube-nocookie.com/embed/'+encodeURIComponent(videoId):null,
+    downloadUrl:'/api/media/download?url='+encodeURIComponent(best.url)+'&quality=audio'};
+}
+app.get('/api/smart/youtube-song',async(req,res)=>{
+  try{
+    const term=String(req.query.q||'').trim().slice(0,180);
+    if(term.length<2)return res.status(400).json({error:'اسم الأغنية غير كافٍ للبحث.'});
+    const match=await findClosestYouTubeSong(term);
+    if(!match)return res.json({ok:true,match:null});
+    res.json({ok:true,match});
+  }catch(err){
+    res.status(422).json({error:err.message||'تعذر العثور على أقرب نسخة على YouTube.'});
+  }
+});
 app.get('/api/smart/search',async(req,res)=>{
   const term=String(req.query.q||'').trim().slice(0,180);
   const type=String(req.query.type||'all');
